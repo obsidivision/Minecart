@@ -1,0 +1,1018 @@
+<!doctype html>
+<!--
+  Floatcart makers in 3D: a standalone page. No external requests, fonts or libraries;
+  the 3D view is drawn by a small WebGL renderer inside this file (the same one as
+  floatcart-3d.html).
+
+  For whoever maintains it:
+  - Links assume floatcart-simulator-rules.html and floatcart-3d.html are in the same
+    folder (the header, the About text, the footer, and RULES_PAGE in the script).
+  - The theme button shares its saved choice with the other pages (localStorage key
+    "floatcart-rules-theme"); the small script in <head> applies it before first paint.
+  - All data is the JSON assigned to D in the script: for each maker its blocks, notes,
+    labels and one run simulated tick by tick with the Python simulator (physics.py,
+    floatcart_layouts.py). Each phase lists the rules it uses, linked to the rules page.
+  - #m1 ... #m13 in the address opens that maker.
+  - There is no Jekyll front matter, so GitHub Pages serves the file as-is.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floatcart makers in 3D &#183; Minecraft Java 26.2</title>
+<meta name="description" content="13 Minecraft rail tracks that turn a minecart into a floatcart with no timing, found by brute-force search. Each one in 3D, with the cart simulated tick by tick (Java 26.2, classic minecart physics).">
+<meta name="color-scheme" content="light dark">
+<script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<style>
+:root{
+  --bg:#f6f5f1; --panel:#ffffff; --fg:#1b1d20; --muted:#5d646d; --line:#e2e0d9; --soft:#f0efe9;
+  --scene:#e8ebee; --grid:#c3c9d0; --glass-edge:#8198ad;
+  --built:#d06a17; --sol:#12916a; --off:#c8352b; --accent:#2a64c9;
+  --label-bg:rgba(255,255,255,.9); --label-fg:#22262b;
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.05);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1113; --panel:#171a1e; --fg:#e6e8eb; --muted:#9ba3ad; --line:#2a2f35; --soft:#1e2227;
+    --scene:#13161a; --grid:#2d333a; --glass-edge:#7d92a6;
+    --built:#f08a3a; --sol:#35c393; --off:#ff6b5e; --accent:#79a8ff;
+    --label-bg:rgba(23,26,30,.92); --label-fg:#e6e8eb;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1113; --panel:#171a1e; --fg:#e6e8eb; --muted:#9ba3ad; --line:#2a2f35; --soft:#1e2227;
+  --scene:#13161a; --grid:#2d333a; --glass-edge:#7d92a6;
+  --built:#f08a3a; --sol:#35c393; --off:#ff6b5e; --accent:#79a8ff;
+  --label-bg:rgba(23,26,30,.92); --label-fg:#e6e8eb;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 6px 20px rgba(0,0,0,.25);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1320px;margin:0 auto;padding:16px}
+header.site{padding:10px 0 2px}
+.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+header h1{font-size:clamp(22px,3vw,30px);line-height:1.2;margin:0 0 6px;font-weight:700;letter-spacing:-.02em}
+header p{margin:0;color:var(--muted);font-size:15px;max-width:780px}
+a{color:var(--accent)}
+.theme-btn{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.theme-btn svg{width:16px;height:16px;flex:none}
+.theme-btn .i-sun,.theme-btn[aria-pressed="true"] .i-moon{display:none}
+.theme-btn[aria-pressed="true"] .i-sun{display:block}
+.rules-used{margin:-4px 0 0;display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:12px;color:var(--muted);min-height:24px}
+.rchip{display:inline-flex;gap:5px;align-items:center;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--soft);color:var(--fg);text-decoration:none;font-size:12px;line-height:1.5}
+.rchip b{font:600 11.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--accent)}
+.rchip:hover{border-color:var(--accent)}
+.foot{color:var(--muted);font-size:13px;border-top:1px solid var(--line);margin-top:20px;padding:14px 0 28px}
+.foot p{margin:0 0 6px}
+@media (max-width:640px){.theme-btn{padding:8px}.theme-btn .label{display:none}header p{font-size:14px}}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 344px;gap:16px;margin-top:14px;align-items:start}
+.stage{position:relative;height:min(78vh,780px);min-height:440px;border-radius:14px;overflow:hidden;background:var(--scene);border:1px solid var(--line)}
+#gl{display:block;width:100%;height:100%;touch-action:none;cursor:grab;outline:none}
+#gl.dragging{cursor:grabbing}
+#labels{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.lbl{position:absolute;left:0;top:0;padding:2px 8px;border-radius:999px;background:var(--label-bg);color:var(--label-fg);font-size:11.5px;line-height:1.35;white-space:nowrap;border:1px solid var(--line);box-shadow:var(--shadow);will-change:transform}
+.lbl.sign{border-radius:7px;white-space:pre;text-align:center;font:11px/1.3 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:4px 8px}
+.lbl.compass{background:none;border:none;box-shadow:none;font-weight:700;color:var(--muted);font-size:13px}
+.lbl.hidden{display:none}
+#tip{position:absolute;left:0;top:0;max-width:280px;padding:8px 10px;border-radius:9px;background:var(--label-bg);color:var(--label-fg);border:1px solid var(--line);box-shadow:var(--shadow);font-size:12.5px;pointer-events:none;opacity:0;transition:opacity .12s}
+#tip.on{opacity:1}
+#tip b{display:block;font-size:13px;margin-bottom:2px}
+#tip .k{color:var(--muted)}
+#tip .note{margin-top:4px}
+.hint{position:absolute;left:12px;bottom:10px;font-size:11.5px;color:var(--muted);pointer-events:none;background:var(--label-bg);padding:3px 8px;border-radius:999px;border:1px solid var(--line)}
+.corner{position:absolute;right:10px;top:10px;display:flex;gap:6px}
+.btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--fg);border-radius:9px;padding:6px 11px;font:inherit;font-size:13px;cursor:pointer;line-height:1.2}
+.btn:hover{border-color:var(--muted)}
+.btn:focus-visible,.seg button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#noGL{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;color:var(--muted)}
+#noGL[hidden]{display:none}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow)}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--soft);border:1px solid var(--line);border-radius:10px;padding:3px;gap:3px}
+.seg button{appearance:none;border:0;background:transparent;color:var(--muted);font:inherit;font-weight:600;padding:7px 8px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px}
+.seg button[aria-selected="true"]{background:var(--panel);color:var(--fg);box-shadow:var(--shadow)}
+.dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+.dot.built{background:var(--built)} .dot.sol{background:var(--sol)}
+.pick{display:flex;flex-direction:column;gap:6px}
+.pick .lab{font-size:12px;color:var(--muted)}
+.pickrow{display:flex;gap:6px}
+.pickrow select{flex:1;min-width:0;font-weight:600}
+.code{display:flex;flex-wrap:wrap;gap:4px;margin:0}
+.tok{font:600 11.5px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;padding:4px 6px;border-radius:6px;border:1px solid var(--line);background:var(--soft);color:var(--muted)}
+.tok.pow{color:var(--fg)}
+.tok.on{background:var(--sol);border-color:var(--sol);color:var(--panel)}
+.desc{margin:0;color:var(--muted);font-size:13px}
+.desc b{color:var(--fg);font-weight:600}
+.transport{display:flex;align-items:center;gap:6px}
+.transport .play{flex:1;font-weight:650;background:var(--fg);color:var(--panel);border-color:var(--fg)}
+.transport .play:hover{opacity:.9}
+select.btn{padding:6px 8px}
+.scrub{position:relative;padding-top:10px}
+.scrub input{width:100%;margin:0;accent-color:var(--accent)}
+.marks{position:absolute;left:8px;right:8px;top:0;height:10px;pointer-events:none}
+.marks i{position:absolute;top:0;width:3px;height:9px;margin-left:-1.5px;border-radius:2px;background:var(--off)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.tick{font-variant-numeric:tabular-nums;color:var(--muted)}
+.tick b{color:var(--fg);font-size:15px}
+.pill{font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.pill.off{color:#fff;background:var(--off);border-color:var(--off);font-weight:600}
+.phase{margin:0;min-height:40px;font-size:13.5px}
+.vals{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:0;font-size:12.5px}
+.vals dt{color:var(--muted)}
+.vals dd{margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums;text-align:right;overflow-wrap:anywhere}
+.result{border:1px solid var(--line);border-radius:12px;padding:11px 12px;background:var(--soft)}
+.result .big{font:600 20px/1.2 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:-.01em}
+.result .lab{font-size:12px;color:var(--muted);margin-bottom:2px}
+.verdict{font-size:13px;font-weight:600;margin-top:2px}
+.verdict.good{color:var(--sol)} .verdict.bad{color:var(--built)}
+.gauge{position:relative;height:30px;margin-top:8px}
+.gauge .track{position:absolute;left:0;right:0;top:9px;height:8px;border-radius:4px;background:var(--line)}
+.gauge .band{position:absolute;top:6px;height:14px;border-radius:4px;background:color-mix(in srgb,var(--sol) 35%,transparent);border:1px solid var(--sol)}
+.gauge .mk{position:absolute;top:1px;width:2px;height:24px;margin-left:-1px;border-radius:1px;background:var(--fg)}
+.gauge .off{position:absolute;left:0;top:-3px;font-size:11px;color:var(--built);font-weight:600}
+.gauge.offscale .track,.gauge.offscale .band{top:15px}
+.axis{display:flex;justify-content:space-between;font:10.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted);margin-top:1px}
+.win{font-size:12px;color:var(--muted);margin-top:6px}
+.toggles{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;font-size:13px}
+.toggles label{display:flex;align-items:center;gap:7px;cursor:pointer}
+.toggles input{accent-color:var(--accent);width:15px;height:15px;margin:0}
+details{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:10px}
+summary{cursor:pointer;color:var(--fg);font-weight:600}
+details p{margin:8px 0 0}
+@media (max-width:900px){
+  .layout{grid-template-columns:1fr}
+  .stage{height:58vh;min-height:340px}
+  .hint{display:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <div class="top">
+      <div>
+        <h1>Floatcart makers</h1>
+        <p>13 rail tracks found by brute-force search. Place a minecart on the start rail and it parks as a floatcart, with no timing. Each one in 3D, with the cart simulated tick by tick (Java 26.2, classic minecart physics). <a href="floatcart-3d.html">See the challenge build in 3D</a> &#183; <a href="floatcart-simulator-rules.html">see the rules</a>.</p>
+      </div>
+      <button type="button" class="btn theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode">
+        <svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg>
+        <svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.6" fill="currentColor"/><path d="M10 1.8v2.4M10 15.8v2.4M1.8 10h2.4M15.8 10h2.4M4.2 4.2l1.7 1.7M14.1 14.1l1.7 1.7M4.2 15.8l1.7-1.7M14.1 5.9l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span class="label">Dark mode</span>
+      </button>
+    </div>
+  </header>
+  <div class="layout">
+    <div class="stage" id="stage">
+      <canvas id="gl" tabindex="0" aria-label="3D view of the selected floatcart maker. Drag to orbit, scroll to zoom."></canvas>
+      <div id="labels" aria-hidden="true"></div>
+      <div id="tip" role="status" aria-live="polite"></div>
+      <div class="hint">Drag to orbit &#183; right-drag or Shift-drag to pan &#183; scroll to zoom &#183; hover a block</div>
+      <div class="corner"><button class="btn" id="resetView" type="button">Reset view</button></div>
+      <div id="noGL" hidden>This browser couldn't start WebGL, so the 3D view is unavailable. The run data on the right still works.</div>
+    </div>
+
+    <aside class="panel" aria-label="Playback and results">
+      <div class="pick">
+        <label class="lab" for="sol">Floatcart maker</label>
+        <div class="pickrow">
+          <button class="btn" id="solPrev" type="button" aria-label="Previous maker">&#8249;</button>
+          <select class="btn" id="sol"></select>
+          <button class="btn" id="solNext" type="button" aria-label="Next maker">&#8250;</button>
+        </div>
+      </div>
+      <p class="code" id="code" aria-label="Layout code, one token per rail"></p>
+      <p class="desc" id="runDesc"></p>
+
+      <div class="transport">
+        <button class="btn" id="back" type="button" aria-label="Previous tick">&#8249;</button>
+        <button class="btn play" id="play" type="button">Play</button>
+        <button class="btn" id="fwd" type="button" aria-label="Next tick">&#8250;</button>
+        <select class="btn" id="speed" aria-label="Playback speed">
+          <option value="0.25">&#188;&times;</option>
+          <option value="0.5" selected>&#189;&times;</option>
+          <option value="1">1&times; (20 tps)</option>
+        </select>
+      </div>
+      <div class="scrub">
+        <div class="marks" id="marks" aria-hidden="true"></div>
+        <input type="range" id="tick" min="0" max="80" step="1" value="0" aria-label="Game tick">
+      </div>
+      <div class="row">
+        <span class="tick">Tick <b id="tickNum">0</b> / <span id="tickMax">0</span></span>
+        <span class="pill" id="railNow"></span>
+      </div>
+      <p class="phase" id="phase"></p>
+      <p class="rules-used" id="phaseRules"></p>
+      <dl class="vals">
+        <dt>y</dt><dd id="vY"></dd>
+        <dt>z</dt><dd id="vZ"></dd>
+        <dt>z speed</dt><dd id="vV"></dd>
+      </dl>
+
+      <div class="result" id="result">
+        <div class="lab">Final y fraction</div>
+        <div class="big" id="fin"></div>
+        <div class="verdict" id="verdict"></div>
+        <div class="gauge" aria-hidden="true">
+          <div class="track"></div>
+          <div class="band" id="band"></div>
+          <div class="mk" id="mk"></div>
+          <div class="off" id="offscale" hidden></div>
+        </div>
+        <div class="axis" aria-hidden="true"><span>0.299995</span><span>0.300005</span><span>0.300015</span></div>
+        <div class="win">Target window: 0.30000001 &lt; y&nbsp;fraction &lt; 0.30001001 (1&times;10<sup>&minus;5</sup> wide)</div>
+      </div>
+
+      <div class="toggles">
+        <label><input type="checkbox" id="tPaths" checked>Paths</label>
+        <label><input type="checkbox" id="tDots" checked>Tick dots</label>
+        <label><input type="checkbox" id="tLabels" checked>Labels</label>
+        <label><input type="checkbox" id="tFollow">Follow cart</label>
+      </div>
+
+      <details>
+        <summary>About this view</summary>
+        <p>Each maker is one straight track running south (x east, z south, y up, same coordinates as the schematics). The layout code has one token per rail: <b>F</b> flat, <b>U</b> slope up, <b>D</b> slope down, then <b>r</b> plain rail, <b>p</b> powered rail (on), <b>h</b> powered rail (off). <b>S</b> is a powered start rail with concrete behind it, and <b>E</b> the parking slope: a powered rail with no power, so it brakes the cart.</p>
+        <p>Where the cart stops on the parking slope sets its height, so it has to be right to 1&times;10<sup>&minus;5</sup> of a block. A depth-first search simulated about 3.6 million tracks; these 13 land inside the window. Every run is simulated with the same rules as the challenge build (<a href="floatcart-simulator-rules.html">rules page</a>), and each was checked at 15 world positions in all 4 directions. Glass blocks are supports; the plain rails past each end only give the end slopes their shape.</p>
+        <p>Gold rails are powered rails: bright when on, dark when off. The outline around the cart is its 0.98&times;0.7 hitbox.</p>
+      </details>
+    </aside>
+  </div>
+  <footer class="foot">
+    <p>Created by <strong>07km</strong>, founder of the solution.</p>
+    <p>Found with the layout search in floatcart_layouts.py, for &#8220;vertical floatcart challenge&#8221; by FarCoolHat. Runs are simulated with the rules on the <a href="floatcart-simulator-rules.html">rules page</a>.</p>
+    <p>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+'use strict';
+var D = {"makers":[{"id":"m1","group":"Recommended","code":"Dr Dr Dr Dr Fr Dr Dr Dr Dr Fr Fr Dr Fr Dr Ur Fr E","tokens":["Dr","Dr","Dr","Dr","Fr","Dr","Dr","Dr","Dr","Fr","Fr","Dr","Fr","Dr","Ur","Fr","E"],"schematic":"floatcart-maker-redstone-free.litematic","rails":17,"levers":0,"blocksTotal":38,"run":{"y":[10.5625,10.5546875,10.538984375,10.51531171875,10.4835898359375,10.443738234296875,10.395675616639844,10.339319872806243,10.274588071534305,10.201396452249648,10.119660416772145,10.029294520939866,9.930212466149264,9.822327090810758,9.705550361718865,9.579793365336053,9.444966298989414,9.300978461979309,9.1477382465991,8.985153129065093,8.813129660355743,8.631573456959302,8.440389191528894,8.239480583444184,8.028750389278624,7.8081003931714115,7.577431397103126,7.336643211074158,7.0856346431849,7.0625,7.0625,7.0625,7.0625,6.875056353301982,6.643806916835002,6.402432486003352,6.150831810863386,5.88890262897202,5.616541655261741,5.333644571814358,5.040106017532501,4.735819577707826,4.420677773484904,4.094572051219753,3.7573927717319506,3.40902919944927,3.0625,3.0625,3.0625,3.0625,3.0625,3.0625,3.0625,2.7962422496597803,2.502642172156378,2.198293593877942,2.0625,2.0625,2.0625,1.991562155883928,1.7064777774427675,1.4107300552171953,1.1042123557693682,1.338183020672938,1.6233715488123721,1.8750806094192587,2.0625,2.0625,2.0625,2.0625,2.0625,2.0625,2.1989474125365085,2.271088528972367,2.300006486950682,2.300006486950682],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.0773468709349077,3.2493703396442566,3.430926543040699,3.622110808471106,3.823019416555817,4.033749610721375,4.2543996068285885,4.485068602896874,4.725856788925842,4.9768653568151,5.238196510383251,5.49023114996792,5.732184403969203,5.964459527810435,6.187443646698018,6.418693083164998,6.660067513996648,6.911668189136614,7.17359737102798,7.445958344738259,7.728855428185642,8.022393982467499,8.326680422292174,8.641822226515096,8.967927948780247,9.30510722826805,9.65347080055073,10.013130508556237,10.375730288213989,10.723826076685429,11.057998033618011,11.37880311227329,11.686775987782358,11.982429948271063,12.26625775034022,12.559857827843622,12.864206406122058,13.179410970183278,13.488797031375947,13.785807650120908,14.070937844116072,14.356022222557232,14.651769944782805,14.958287644230632,15.275683020672938,15.560871548812372,15.812580609419259,16.033823354571524,16.23684542038866,16.431746603573114,16.618851739430188,16.79847266985298,16.970908763058862,17.13644741253651,17.208588528972367,17.237506486950682,17.237506486950682],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.164211,0.1737437,0.1833718,0.1930961,0.2029177,0.2128375,0.2228565,0.2329757,0.2431961,0.2535187,0.2520346,0.2419533,0.2322751,0.2229841,0.2234369,0.2335619,0.2437882,0.2541167,0.2645485,0.2750846,0.2857261,0.2964739,0.3073293,0.3182932,0.3293668,0.3405511,0.3518472,0.3625998,0.3480958,0.334172,0.3208051,0.3079729,0.295654,0.2838278,0.2857876,0.2965361,0.3073921,0.3093861,0.2970106,0.2851302,0.2772719,0.2879352,0.2987052,0.3095829,0.293001,0.2595216,0.2290552,0.2030221,0.1949012,0.1871051,0.1796209,0.1724361,0.1655386,0.1520947,0.0656484,0.0263153,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,1,1,1,2,2,2,1,1,1,1,3,3,3,2,2,2,2,2,2,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,4,5,5,5,5,6,6,6,7,7,7,7,8,8,9,9,9,10,10,10,10,11,11,11,12,12,12,13,13,13,13,14,14,14,15,15,15,15,15,15,16,16,16],"final_y":2.300006486950682,"yfrac":0.3000064869506822,"inside":true,"margin":3.524969994117555e-06},"verified":{"runs":60,"floatcarts":60,"spread":9.313225746154785e-10},"blocks":[[2,0,14,"white_stained_glass",{}],[2,0,15,"white_stained_glass",{}],[2,1,12,"white_stained_glass",{}],[2,1,13,"white_stained_glass",{}],[2,1,14,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,15,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,16,"white_stained_glass",{}],[2,1,17,"white_stained_glass",{}],[2,2,9,"white_stained_glass",{}],[2,2,10,"white_stained_glass",{}],[2,2,11,"white_stained_glass",{}],[2,2,12,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,13,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,16,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,17,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,2,18,"white_stained_glass",{}],[2,3,8,"white_stained_glass",{}],[2,3,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,10,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,11,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,18,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,7,"white_stained_glass",{}],[2,4,8,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,6,"white_stained_glass",{}],[2,5,7,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,6,4,"white_stained_glass",{}],[2,6,5,"white_stained_glass",{}],[2,6,6,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,3,"white_stained_glass",{}],[2,7,4,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,5,"rail",{"shape":"north_south","waterlogged":"false"}],[2,8,2,"white_stained_glass",{}],[2,8,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,1,"white_stained_glass",{}],[2,9,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,0,"white_stained_glass",{}],[2,10,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,11,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,14":"Rail 14 of 17 (Dr). Slope down: the cart picks up speed.","2,1,15":"Rail 15 of 17 (Ur). Slope up: climbing costs the cart speed.","2,2,12":"Rail 12 of 17 (Dr). Slope down: the cart picks up speed.","2,2,13":"Rail 13 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,16":"Rail 16 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,17":"Rail 17 of 17 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,2,18":"The parking slope needs a solid block here, at the foot of its high side.","2,3,9":"Rail 9 of 17 (Dr). Slope down: the cart picks up speed.","2,3,10":"Rail 10 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,3,11":"Rail 11 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,3,18":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,4,8":"Rail 8 of 17 (Dr). Slope down: the cart picks up speed.","2,5,7":"Rail 7 of 17 (Dr). Slope down: the cart picks up speed.","2,6,6":"Rail 6 of 17 (Dr). Slope down: the cart picks up speed.","2,7,4":"Rail 4 of 17 (Dr). Slope down: the cart picks up speed.","2,7,5":"Rail 5 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,8,3":"Rail 3 of 17 (Dr). Slope down: the cart picks up speed.","2,9,2":"Rail 2 of 17 (Dr). Slope down: the cart picks up speed.","2,10,1":"Rail 1 of 17 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,11,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,11.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,4.0,17.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,19.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,11,18]},{"id":"m2","group":"Recommended","code":"Dr Dr Fr Fr Fp Up Fr Fr Ur E","tokens":["Dr","Dr","Fr","Fr","Fp","Up","Fr","Fr","Ur","E"],"schematic":"floatcart-maker-compact.litematic","rails":10,"levers":1,"blocksTotal":26,"run":{"y":[2.5625,2.5546875,2.538984375,2.51531171875,2.4835898359375,2.443738234296875,2.395675616639844,2.339319872806242,2.2745880715343048,2.201396452249648,2.1196604167721445,2.029294520939866,1.930212466149265,1.8223270908107576,1.7055503617188652,1.5797933653360539,1.4449662989894145,1.3009784619793088,1.147738246599102,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.09201649978172,1.424985014801365,1.7801738634692423,2.0625,2.0625,2.0625,2.0625,2.0625,2.0625,2.3558175964700325,2.651355445932941,2.9124823889441878,3.142295407084422,3.2429540803382277,3.2848475266687096,3.300002794749078,3.300002794749078],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640625,1.618761765703125,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.132287533850735,2.2401729091892424,2.356949638281135,2.482706634663946,2.6175337010105855,2.7615215380206912,2.914761753400898,3.0773468709349068,3.2376904960975104,3.3916203762536097,3.539393061203465,3.681254838755326,3.817442145205113,3.9481819593969085,4.073692181021032,4.194181993780191,4.309852214028983,4.420895625467824,4.527497300449111,4.629834908431147,4.728079012093901,4.822393351610145,4.912935117545739,4.99985521284391,5.083298504330153,5.163404064156946,5.300305401590668,5.491730685527041,5.735498958105959,6.02951649978172,6.362485014801365,6.717673863469242,7.0930832157570105,7.493083215757011,7.883108820271941,8.257533400606274,8.616980997727234,8.962050690963355,9.293317596470033,9.588855445932941,9.849982388944188,10.079795407084422,10.180454080338228,10.22234752666871,10.237502794749078,10.237502794749078],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.1603436,0.1539299,0.1477727,0.1418618,0.1361873,0.1307398,0.1255102,0.1204898,0.1156702,0.1110434,0.1066017,0.1023376,0.0982441,0.0943143,0.0905418,0.0869201,0.0834433,0.0801056,0.1369013,0.1914253,0.2437683,0.2940175,0.340781,0.3630013,0.3832219,0.4062767,0.3900256,0.3744246,0.3594476,0.3450697,0.3312669,0.3033503,0.2689394,0.2376255,0.2091298,0.0915994,0.038123,0.0137913,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,6,6,6,6,6,7,7,7,2,2,2,2,2,2,3,3,3,4,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9,9,9],"final_y":3.300002794749078,"yfrac":0.3000027947490782,"inside":true,"margin":2.7828281492503493e-06},"verified":{"runs":60,"floatcarts":60,"spread":3.7107383832335472e-09},"blocks":[[2,0,2,"white_stained_glass",{}],[2,0,3,"white_stained_glass",{}],[2,0,4,"white_stained_glass",{}],[2,0,5,"white_stained_glass",{}],[2,0,6,"white_stained_glass",{}],[2,1,1,"white_stained_glass",{}],[2,1,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,3,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,4,"rail",{"shape":"north_south","waterlogged":"false"}],[0,1,5,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,1,5,"white_concrete",{}],[2,1,5,"powered_rail",{"shape":"north_south","waterlogged":"false","powered":"true"}],[2,1,6,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,1,7,"white_stained_glass",{}],[2,1,8,"white_stained_glass",{}],[2,1,9,"white_stained_glass",{}],[2,2,0,"white_stained_glass",{}],[2,2,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,7,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,8,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,9,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,2,10,"white_stained_glass",{}],[2,3,0,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,10,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,3,11,"white_stained_glass",{}],[2,4,11,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,2":"Rail 2 of 10 (Dr). Slope down: the cart picks up speed.","2,1,3":"Rail 3 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,4":"Rail 4 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","0,1,5":"Powers the concrete block it sits on, which powers the rail next to it.","1,1,5":"Powered by its lever; powers the rail next to it.","2,1,5":"Rail 5 of 10 (Fp). Powered rail, ON: +0.06 blocks/tick every tick.","2,1,6":"Rail 6 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","2,2,1":"Rail 1 of 10 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,2,7":"Rail 7 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,8":"Rail 8 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,9":"Rail 9 of 10 (Ur). Slope up: climbing costs the cart speed.","2,3,0":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,3,10":"Rail 10 of 10 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,3,11":"The parking slope needs a solid block here, at the foot of its high side.","2,4,11":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,3.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,5.0,10.5],"t":"Parking slope"},{"p":[0.5,0.95,5.5],"t":"Lever","cls":"below"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,12.25],"t":"S","cls":"compass"}],"bounds":[0,0,0,2,4,11]},{"id":"m3","group":"No redstone","code":"Dr Dr Dr Fr Dr Dr Fr Dr Dr Dr Fr Fr Dr Fr Dr Dr Ur E","tokens":["Dr","Dr","Dr","Fr","Dr","Dr","Fr","Dr","Dr","Dr","Fr","Fr","Dr","Fr","Dr","Dr","Ur","E"],"schematic":null,"rails":18,"levers":0,"blocksTotal":40,"run":{"y":[11.5625,11.5546875,11.538984375,11.51531171875,11.4835898359375,11.443738234296875,11.395675616639844,11.339319872806243,11.274588071534305,11.201396452249648,11.119660416772145,11.029294520939866,10.930212466149264,10.822327090810758,10.705550361718865,10.579793365336053,10.444966298989414,10.300978461979309,10.1477382465991,9.985153129065093,9.813129660355743,9.631573456959302,9.440389191528894,9.239480583444184,9.0625,9.0625,9.0625,9.0625,9.0625,9.054148944863162,8.873752934311794,8.683740463654912,8.484015368291463,8.274480521974375,8.05503782719412,7.825588205466062,7.586031587520723,7.336266903395931,7.07619207242989,7.0625,7.0625,7.0625,7.0554703280872655,6.816962531368139,6.56825715668182,6.3092522282486385,6.039844750531126,5.759930698036436,5.469405005016801,5.16816155506697,4.8560931706176405,4.533091602323818,4.199047518347056,4.0625,4.0625,4.0625,4.0625,4.0625,4.0625,4.016977885782799,3.742147664640628,3.4567566412870345,3.1606992076999045,3.0625,3.0625,3.0625,2.9909238779658196,2.7145831167454784,2.4276664479129337,2.1300681123920633,1.821681293515983,1.5023981064511425,1.1721095875156529,1.2942943166091894,1.6081203281143637,1.8858894985840706,2.1308469437115036,2.238396331244484,2.2834250525719924,2.3000068707760093,2.3000068707760093],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.0773468709349077,3.2493703396442566,3.430926543040699,3.622110808471106,3.823019416555817,4.033749610721375,4.24489962629252,4.4476036412408195,4.6421994955911865,4.829011515767539,5.0083510551368375,5.188747065688206,5.378759536345088,5.578484631708538,5.788019478025624,6.00746217280588,6.236911794533938,6.476468412479277,6.726233096604069,6.98630792757011,7.256796006845811,7.517149166571978,7.767088199909099,8.007029671912735,8.245537468631861,8.49424284331818,8.753247771751361,9.022655249468874,9.302569301963564,9.593094994983199,9.89433844493303,10.20640682938236,10.529408397676182,10.863452481652944,11.208649506469472,11.546866026210692,11.871553885162264,12.183254229755773,12.482486560565542,12.76974959814292,13.045522114217201,13.320352335359372,13.605743358712965,13.901800792300095,14.208631300223097,14.508098548214173,14.795587106285605,15.07157612203418,15.347916883254522,15.634833552087066,15.932431887607937,16.240818706484017,16.560101893548858,16.890390412484347,17.23179431660919,17.545620328114364,17.82338949858407,18.068346943711504,18.175896331244484,18.220925052571992,18.23750687077601,18.23750687077601],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.164211,0.1737437,0.1833718,0.1930961,0.2029177,0.21115,0.202704,0.1945959,0.186812,0.1793395,0.1725835,0.1822,0.1919126,0.2017223,0.2116302,0.2216371,0.2317441,0.2419522,0.2522623,0.2626756,0.2603532,0.249939,0.2399415,0.2306953,0.2408929,0.2511924,0.261595,0.2721016,0.2827132,0.2934309,0.3042559,0.3151891,0.3262316,0.3373845,0.3382165,0.3246879,0.3117003,0.2992323,0.287263,0.2757725,0.2670177,0.2775785,0.2882449,0.299018,0.2994672,0.2874886,0.275989,0.2685283,0.2791042,0.2897858,0.3005743,0.3114707,0.322476,0.3335914,0.3216385,0.2855817,0.2527699,0.2229113,0.0978699,0.0409761,0.0150895,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,2,2,2,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,1,1,1,1,2,2,2,1,1,1,1,1,1,1,3,3,3,4,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,7,7,7,7,8,8,8,8,9,9,9,10,10,10,11,11,11,12,12,12,12,13,13,13,14,14,14,14,15,15,15,16,16,16,17,17,17,17],"final_y":2.3000068707760093,"yfrac":0.3000068707760093,"inside":true,"margin":3.1411446670404075e-06},"verified":{"runs":60,"floatcarts":60,"spread":6.858499546069652e-09},"blocks":[[2,0,16,"white_stained_glass",{}],[2,0,17,"white_stained_glass",{}],[2,1,15,"white_stained_glass",{}],[2,1,16,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,17,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,18,"white_stained_glass",{}],[2,2,13,"white_stained_glass",{}],[2,2,14,"white_stained_glass",{}],[2,2,15,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,18,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,2,19,"white_stained_glass",{}],[2,3,10,"white_stained_glass",{}],[2,3,11,"white_stained_glass",{}],[2,3,12,"white_stained_glass",{}],[2,3,13,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,14,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,19,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,9,"white_stained_glass",{}],[2,4,10,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,4,11,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,12,"rail",{"shape":"north_south","waterlogged":"false"}],[2,5,8,"white_stained_glass",{}],[2,5,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,6,6,"white_stained_glass",{}],[2,6,7,"white_stained_glass",{}],[2,6,8,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,5,"white_stained_glass",{}],[2,7,6,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,7,"rail",{"shape":"north_south","waterlogged":"false"}],[2,8,3,"white_stained_glass",{}],[2,8,4,"white_stained_glass",{}],[2,8,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,2,"white_stained_glass",{}],[2,9,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,4,"rail",{"shape":"north_south","waterlogged":"false"}],[2,10,1,"white_stained_glass",{}],[2,10,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,11,0,"white_stained_glass",{}],[2,11,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,12,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,16":"Rail 16 of 18 (Dr). Slope down: the cart picks up speed.","2,1,17":"Rail 17 of 18 (Ur). Slope up: climbing costs the cart speed.","2,2,15":"Rail 15 of 18 (Dr). Slope down: the cart picks up speed.","2,2,18":"Rail 18 of 18 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,2,19":"The parking slope needs a solid block here, at the foot of its high side.","2,3,13":"Rail 13 of 18 (Dr). Slope down: the cart picks up speed.","2,3,14":"Rail 14 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,3,19":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,4,10":"Rail 10 of 18 (Dr). Slope down: the cart picks up speed.","2,4,11":"Rail 11 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,4,12":"Rail 12 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,5,9":"Rail 9 of 18 (Dr). Slope down: the cart picks up speed.","2,6,8":"Rail 8 of 18 (Dr). Slope down: the cart picks up speed.","2,7,6":"Rail 6 of 18 (Dr). Slope down: the cart picks up speed.","2,7,7":"Rail 7 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,8,5":"Rail 5 of 18 (Dr). Slope down: the cart picks up speed.","2,9,3":"Rail 3 of 18 (Dr). Slope down: the cart picks up speed.","2,9,4":"Rail 4 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,10,2":"Rail 2 of 18 (Dr). Slope down: the cart picks up speed.","2,11,1":"Rail 1 of 18 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,12,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,12.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,4.0,18.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,20.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,12,19]},{"id":"m4","group":"No redstone","code":"Dr Dr Dr Dr Dr Fr Dr Fr Dr Fr Dr Dr Fr Dr Ur E","tokens":["Dr","Dr","Dr","Dr","Dr","Fr","Dr","Fr","Dr","Fr","Dr","Dr","Fr","Dr","Ur","E"],"schematic":null,"rails":16,"levers":0,"blocksTotal":36,"run":{"y":[10.5625,10.5546875,10.538984375,10.51531171875,10.4835898359375,10.443738234296875,10.395675616639844,10.339319872806243,10.274588071534305,10.201396452249648,10.119660416772145,10.029294520939866,9.930212466149264,9.822327090810758,9.705550361718865,9.579793365336053,9.444966298989414,9.300978461979309,9.1477382465991,8.985153129065093,8.813129660355743,8.631573456959302,8.440389191528894,8.239480583444184,8.028750389278624,7.8081003931714115,7.577431397103126,7.336643211074158,7.0856346431849,6.824303489616749,6.552546524512917,6.270259489758047,6.0625,6.0625,6.0625,6.0625,5.879098050812687,5.614451531320815,5.339346046634024,5.0625,5.0625,5.0625,5.0625,4.968653681331791,4.7114652181451095,4.4438923703265605,4.165831294029827,4.0625,4.0625,4.0625,4.0625,3.814036178315833,3.5540515400989925,3.2836545554999823,3.0027411010549834,2.7112060120655332,2.4089430721861884,2.0958450029080513,2.0625,2.0625,2.0625,1.8705912997377876,1.5764847127351658,1.2716245598625182,1.1690966945388563,1.4695029920303586,1.7350602227476255,1.9689048027003384,2.1738908704573063,2.263253281286726,2.3000069282141133,2.3000069282141133],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.0773468709349077,3.2493703396442566,3.430926543040699,3.622110808471106,3.823019416555817,4.033749610721375,4.2543996068285885,4.485068602896874,4.725856788925842,4.9768653568151,5.238196510383251,5.509953475487083,5.792240510241953,6.085162915344372,6.376756398730597,6.656686142781373,6.925418697070118,7.183401949187313,7.448048468679185,7.723153953365976,8.008822992899635,8.296907573183649,8.573468770256303,8.83896751944605,9.09384631866821,9.35103478185489,9.61860762967344,9.896668705970173,10.185322893029873,10.467597477308678,10.73858107821633,10.998725335087675,11.248463821684167,11.508448459901008,11.778845444500018,12.059758898945017,12.351293987934467,12.653556927813812,12.966654997091949,13.290696547062868,13.603443685180354,13.903680937773139,14.191908700262212,14.486015287264834,14.790875440137482,15.106596694538856,15.407002992030359,15.672560222747626,15.906404802700338,16.111390870457306,16.200753281286726,16.237506928214113,16.237506928214113],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.164211,0.1737437,0.1833718,0.1930961,0.2029177,0.2128375,0.2228565,0.2329757,0.2431961,0.2535187,0.2639445,0.2744745,0.2851099,0.2915935,0.2799297,0.2687326,0.2579833,0.256834,0.267293,0.2778565,0.2880846,0.2765612,0.2654987,0.2548788,0.249376,0.2597603,0.2702486,0.2808417,0.2822746,0.2709836,0.2601443,0.2497385,0.2521721,0.2625845,0.273101,0.2837226,0.2944504,0.3052856,0.316229,0.3127471,0.3002373,0.2882278,0.2862941,0.2970477,0.3079088,0.3082188,0.2733697,0.2416571,0.2127986,0.1865373,0.0813198,0.0334458,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,2,2,2,2,1,1,1,1,2,2,2,2,1,1,1,1,1,1,1,2,2,2,1,1,1,3,3,3,3,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,7,7,8,8,8,8,9,9,9,9,10,10,10,11,11,11,11,12,12,12,13,13,13,14,14,14,14,15,15,15],"final_y":2.3000069282141133,"yfrac":0.30000692821411334,"inside":true,"margin":3.0837065629896188e-06},"verified":{"runs":60,"floatcarts":60,"spread":1.5788828022778034e-09},"blocks":[[2,0,14,"white_stained_glass",{}],[2,0,15,"white_stained_glass",{}],[2,1,12,"white_stained_glass",{}],[2,1,13,"white_stained_glass",{}],[2,1,14,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,15,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,16,"white_stained_glass",{}],[2,2,11,"white_stained_glass",{}],[2,2,12,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,13,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,16,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,2,17,"white_stained_glass",{}],[2,3,9,"white_stained_glass",{}],[2,3,10,"white_stained_glass",{}],[2,3,11,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,17,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,7,"white_stained_glass",{}],[2,4,8,"white_stained_glass",{}],[2,4,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,4,10,"rail",{"shape":"north_south","waterlogged":"false"}],[2,5,5,"white_stained_glass",{}],[2,5,6,"white_stained_glass",{}],[2,5,7,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,8,"rail",{"shape":"north_south","waterlogged":"false"}],[2,6,4,"white_stained_glass",{}],[2,6,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,6,6,"rail",{"shape":"north_south","waterlogged":"false"}],[2,7,3,"white_stained_glass",{}],[2,7,4,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,8,2,"white_stained_glass",{}],[2,8,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,1,"white_stained_glass",{}],[2,9,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,0,"white_stained_glass",{}],[2,10,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,11,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,14":"Rail 14 of 16 (Dr). Slope down: the cart picks up speed.","2,1,15":"Rail 15 of 16 (Ur). Slope up: climbing costs the cart speed.","2,2,12":"Rail 12 of 16 (Dr). Slope down: the cart picks up speed.","2,2,13":"Rail 13 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,16":"Rail 16 of 16 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,2,17":"The parking slope needs a solid block here, at the foot of its high side.","2,3,11":"Rail 11 of 16 (Dr). Slope down: the cart picks up speed.","2,3,17":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,4,9":"Rail 9 of 16 (Dr). Slope down: the cart picks up speed.","2,4,10":"Rail 10 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,5,7":"Rail 7 of 16 (Dr). Slope down: the cart picks up speed.","2,5,8":"Rail 8 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,6,5":"Rail 5 of 16 (Dr). Slope down: the cart picks up speed.","2,6,6":"Rail 6 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,7,4":"Rail 4 of 16 (Dr). Slope down: the cart picks up speed.","2,8,3":"Rail 3 of 16 (Dr). Slope down: the cart picks up speed.","2,9,2":"Rail 2 of 16 (Dr). Slope down: the cart picks up speed.","2,10,1":"Rail 1 of 16 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,11,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,11.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,4.0,16.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,18.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,11,17]},{"id":"m5","group":"No redstone","code":"Dr Fr Dr Dr Dr Dr Dr Fr Dr Dr Dr Fr Fr Dr Ur Fr Dr E","tokens":["Dr","Fr","Dr","Dr","Dr","Dr","Dr","Fr","Dr","Dr","Dr","Fr","Fr","Dr","Ur","Fr","Dr","E"],"schematic":null,"rails":18,"levers":0,"blocksTotal":40,"run":{"y":[10.5625,10.5546875,10.538984375,10.51531171875,10.4835898359375,10.443738234296875,10.395675616639844,10.339319872806243,10.274588071534305,10.201396452249648,10.119660416772145,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.0625,10.054061735708105,9.995227353065186,9.92799212659584,9.852272047861797,9.767982268340415,9.67503709102382,9.573349961934058,9.462833461553398,9.343399296168933,9.214958289130623,9.07742037202193,8.930694575742148,8.774689021499569,8.609310911714566,8.434466520831712,8.250061186040028,8.05599929790043,7.852184290879434,7.6385186337882285,7.414903820126111,7.181240358327372,6.937427761910646,6.6833645395297525,6.41894818492505,6.1440751667743,5.858640918442044,5.562539827626464,5.255665225902729,5.0625,5.0625,5.0625,5.031058691597318,4.743244278513291,4.444739221298425,4.135436613511409,3.815228479646523,3.4840057644429887,3.1416583220874195,2.788074905308294,2.4231431543613766,2.0625,2.0625,2.0625,2.0625,2.0625,2.0625,1.986370242788194,1.6777964452160763,1.3583244096682368,1.09715484623508,1.4196609100739224,1.705328928167269,1.957474324632214,2.0625,2.0625,2.0625,2.0625,2.0625,1.9880258746281285,1.8072811333744099,1.6169164447081528,1.4168356091552354,1.2069414652467891,1.137864120100744,1.241191484696209,1.2842991855871446,1.3000069394925227,1.3000069394925227],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1228147598977287,2.2088396695018195,2.291423582721747,2.3707041394128767,2.4468134738363614,2.519878434882907,2.5900207974875906,2.657357465588087,2.7220006669645636,2.784058140285981,2.8436333146745416,2.90082548208756,2.955729962804057,3.008438264291895,3.0672726469348137,3.1345078734041616,3.210227952138203,3.294517731659585,3.3874629089761807,3.4891500380659424,3.5996665384466016,3.7191007038310673,3.8475417108693777,3.985079627978071,4.131805424257852,4.28781097850043,4.453189088285434,4.6280334791682884,4.812438813959971,5.00650070209957,5.210315709120566,5.4239813662117715,5.647596179873889,5.881259641672628,6.125072238089354,6.3791354604702475,6.64355181507495,6.9184248332257,7.203859081557956,7.499960172373536,7.806834774097271,8.124590621838244,8.439294496964715,8.741410217086127,9.031441308402682,9.319255721486709,9.617760778701575,9.92706338648859,10.247271520353477,10.578494235557011,10.92084167791258,11.274425094691706,11.639356845638623,12.01575041409501,12.395120397531208,12.75931558162996,13.10894295836476,13.44458524003017,13.766801830428964,14.076129757211806,14.384703554783924,14.704175590331763,15.03465484623508,15.357160910073922,15.642828928167269,15.894974324632214,16.116614135415315,16.324137069998702,16.523359087198752,16.7146122237108,16.898215234762368,17.07447412537187,17.25521886662559,17.445583555291847,17.645664390844765,17.85555853475321,18.075364120100744,18.17869148469621,18.221799185587145,18.237506939492523,18.237506939492523],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0896093,0.0860249,0.0825839,0.0792806,0.0761093,0.073065,0.0701424,0.0673367,0.0646432,0.0620575,0.0595752,0.0571922,0.0549045,0.0527083,0.0510219,0.0594227,0.0679076,0.0764773,0.0851327,0.0938746,0.102704,0.1116217,0.1206285,0.1297254,0.1389133,0.1481931,0.1575656,0.1670319,0.1765928,0.1862494,0.1960025,0.2058532,0.2158023,0.225851,0.2360001,0.2462507,0.2566039,0.2670605,0.2776217,0.2882886,0.2990621,0.3099433,0.3147039,0.3021157,0.2900311,0.2800019,0.2906926,0.3014901,0.3123956,0.3234102,0.3345349,0.3457709,0.3571193,0.3685811,0.37937,0.3641952,0.3496274,0.3356423,0.3222166,0.3093279,0.3007613,0.3116595,0.3226668,0.3303186,0.2934805,0.2599579,0.2294523,0.2075229,0.199222,0.1912531,0.183603,0.1762589,0.1729322,0.1825522,0.1922683,0.2020816,0.2119931,0.2144672,0.0940279,0.039228,0.0142941,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,1,1,1,3,3,3,3,2,2,2,2,2,1,1,1,1,1,4,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,3,3,3,3,3,4,4,4,4,4,5,5,5,5,6,6,6,7,7,7,8,8,8,8,9,9,9,10,10,11,11,11,12,12,12,13,13,13,14,14,14,14,15,15,15,15,15,16,16,16,16,16,17,17,17,17],"final_y":1.3000069394925227,"yfrac":0.30000693949252266,"inside":true,"margin":3.0724281536720355e-06},"verified":{"runs":60,"floatcarts":60,"spread":6.984919309616089e-09},"blocks":[[2,0,14,"white_stained_glass",{}],[2,0,15,"white_stained_glass",{}],[2,0,17,"white_stained_glass",{}],[2,0,18,"white_stained_glass",{}],[2,1,11,"white_stained_glass",{}],[2,1,12,"white_stained_glass",{}],[2,1,13,"white_stained_glass",{}],[2,1,14,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,15,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,16,"white_stained_glass",{}],[2,1,17,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,18,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,1,19,"white_stained_glass",{}],[2,2,10,"white_stained_glass",{}],[2,2,11,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,12,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,13,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,16,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,19,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,9,"white_stained_glass",{}],[2,3,10,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,4,7,"white_stained_glass",{}],[2,4,8,"white_stained_glass",{}],[2,4,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,6,"white_stained_glass",{}],[2,5,7,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,8,"rail",{"shape":"north_south","waterlogged":"false"}],[2,6,5,"white_stained_glass",{}],[2,6,6,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,4,"white_stained_glass",{}],[2,7,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,8,3,"white_stained_glass",{}],[2,8,4,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,1,"white_stained_glass",{}],[2,9,2,"white_stained_glass",{}],[2,9,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,0,"white_stained_glass",{}],[2,10,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,2,"rail",{"shape":"north_south","waterlogged":"false"}],[2,11,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,14":"Rail 14 of 18 (Dr). Slope down: the cart picks up speed.","2,1,15":"Rail 15 of 18 (Ur). Slope up: climbing costs the cart speed.","2,1,17":"Rail 17 of 18 (Dr). Slope down: the cart picks up speed.","2,1,18":"Rail 18 of 18 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,1,19":"The parking slope needs a solid block here, at the foot of its high side.","2,2,11":"Rail 11 of 18 (Dr). Slope down: the cart picks up speed.","2,2,12":"Rail 12 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,13":"Rail 13 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,16":"Rail 16 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,19":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,3,10":"Rail 10 of 18 (Dr). Slope down: the cart picks up speed.","2,4,9":"Rail 9 of 18 (Dr). Slope down: the cart picks up speed.","2,5,7":"Rail 7 of 18 (Dr). Slope down: the cart picks up speed.","2,5,8":"Rail 8 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,6,6":"Rail 6 of 18 (Dr). Slope down: the cart picks up speed.","2,7,5":"Rail 5 of 18 (Dr). Slope down: the cart picks up speed.","2,8,4":"Rail 4 of 18 (Dr). Slope down: the cart picks up speed.","2,9,3":"Rail 3 of 18 (Dr). Slope down: the cart picks up speed.","2,10,1":"Rail 1 of 18 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,10,2":"Rail 2 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,11,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,11.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,3.0,18.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,20.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,11,19]},{"id":"m6","group":"No redstone","code":"Dr Dr Dr Dr Dr Fr Dr Dr Dr Fr Dr Dr Fr Fr Dr Fr Ur E","tokens":["Dr","Dr","Dr","Dr","Dr","Fr","Dr","Dr","Dr","Fr","Dr","Dr","Fr","Fr","Dr","Fr","Ur","E"],"schematic":null,"rails":18,"levers":0,"blocksTotal":40,"run":{"y":[11.5625,11.5546875,11.538984375,11.51531171875,11.4835898359375,11.443738234296875,11.395675616639844,11.339319872806243,11.274588071534305,11.201396452249648,11.119660416772145,11.029294520939866,10.930212466149264,10.822327090810758,10.705550361718865,10.579793365336053,10.444966298989414,10.300978461979309,10.1477382465991,9.985153129065093,9.813129660355743,9.631573456959302,9.440389191528894,9.239480583444184,9.028750389278624,8.808100393171411,8.577431397103126,8.336643211074158,8.0856346431849,7.824303489616749,7.552546524512917,7.270259489758047,7.0625,7.0625,7.0625,7.0625,6.879098050812687,6.614451531320815,6.339346046634024,6.053677007100365,5.75733877717137,5.450224664943084,5.132226911592516,4.803236680708443,4.463144047515527,4.111837987990683,4.0625,4.0625,4.062043588629537,3.7311015245158323,3.3890375397609915,3.0357404151586014,2.6710978193101873,2.294996297503289,2.0625,2.0625,2.0625,2.0625,2.0625,2.0625,1.822921082380205,1.502712793204008,1.1714899211360486,1.0625,1.0625,1.0625,1.2586094400651113,1.536584590459249,1.781729477317917,1.9969988243593022,2.1850814301669637,2.26675276580945,2.3000069735267807,2.3000069735267807],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.0773468709349077,3.2493703396442566,3.430926543040699,3.622110808471106,3.823019416555817,4.033749610721375,4.2543996068285885,4.485068602896874,4.725856788925842,4.9768653568151,5.238196510383251,5.509953475487083,5.792240510241953,6.085162915344372,6.376756398730597,6.656686142781373,6.925418697070118,7.183401949187313,7.448048468679185,7.723153953365976,8.008822992899635,8.30516122282863,8.612275335056916,8.930273088407484,9.259263319291557,9.599355952484473,9.950662012009317,10.31329363212941,10.663886886844233,11.000456411370463,11.331398475484168,11.673462460239008,12.026759584841399,12.391402180689813,12.767503702496711,13.155178739521677,13.53897158994081,13.907412726343177,14.261116217289448,14.60067156859787,14.926644705853954,15.239578917619795,15.559787206795992,15.891010078863951,16.233357679652592,16.567460872466487,16.888199937567826,17.19610944006511,17.47408459045925,17.719229477317917,17.934498824359302,18.122581430166964,18.20425276580945,18.23750697352678,18.23750697352678],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.164211,0.1737437,0.1833718,0.1930961,0.2029177,0.2128375,0.2228565,0.2329757,0.2431961,0.2535187,0.2639445,0.2744745,0.2851099,0.2915935,0.2799297,0.2687326,0.2579833,0.256834,0.267293,0.2778565,0.2885257,0.2993016,0.3101853,0.3211777,0.3322801,0.3434936,0.3548191,0.3505933,0.3365695,0.3231296,0.3342515,0.3454846,0.3568301,0.368289,0.3798625,0.3837929,0.3684411,0.3537035,0.3395554,0.3259731,0.3129342,0.3123958,0.3234104,0.3345351,0.3341032,0.3207391,0.3079095,0.2857877,0.2529574,0.2230818,0.1958951,0.1711552,0.0743209,0.0302613,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,1,1,1,1,1,1,1,2,2,1,1,1,1,1,1,2,2,2,2,2,2,1,1,1,2,2,2,3,3,3,3,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,7,7,8,8,8,9,9,10,10,10,11,11,11,12,12,12,13,13,13,14,14,14,15,15,15,16,16,16,16,17,17,17],"final_y":2.3000069735267807,"yfrac":0.30000697352678074,"inside":true,"margin":3.038393895593572e-06},"verified":{"runs":60,"floatcarts":60,"spread":8.416463970206678e-09},"blocks":[[2,0,15,"white_stained_glass",{}],[2,0,16,"white_stained_glass",{}],[2,0,17,"white_stained_glass",{}],[2,1,12,"white_stained_glass",{}],[2,1,13,"white_stained_glass",{}],[2,1,14,"white_stained_glass",{}],[2,1,15,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,16,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,17,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,18,"white_stained_glass",{}],[2,2,11,"white_stained_glass",{}],[2,2,12,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,13,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,14,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,18,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,2,19,"white_stained_glass",{}],[2,3,9,"white_stained_glass",{}],[2,3,10,"white_stained_glass",{}],[2,3,11,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,19,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,8,"white_stained_glass",{}],[2,4,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,4,10,"rail",{"shape":"north_south","waterlogged":"false"}],[2,5,7,"white_stained_glass",{}],[2,5,8,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,6,5,"white_stained_glass",{}],[2,6,6,"white_stained_glass",{}],[2,6,7,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,4,"white_stained_glass",{}],[2,7,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,6,"rail",{"shape":"north_south","waterlogged":"false"}],[2,8,3,"white_stained_glass",{}],[2,8,4,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,2,"white_stained_glass",{}],[2,9,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,1,"white_stained_glass",{}],[2,10,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,11,0,"white_stained_glass",{}],[2,11,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,12,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,15":"Rail 15 of 18 (Dr). Slope down: the cart picks up speed.","2,1,16":"Rail 16 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,17":"Rail 17 of 18 (Ur). Slope up: climbing costs the cart speed.","2,2,12":"Rail 12 of 18 (Dr). Slope down: the cart picks up speed.","2,2,13":"Rail 13 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,14":"Rail 14 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,18":"Rail 18 of 18 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,2,19":"The parking slope needs a solid block here, at the foot of its high side.","2,3,11":"Rail 11 of 18 (Dr). Slope down: the cart picks up speed.","2,3,19":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,4,9":"Rail 9 of 18 (Dr). Slope down: the cart picks up speed.","2,4,10":"Rail 10 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,5,8":"Rail 8 of 18 (Dr). Slope down: the cart picks up speed.","2,6,7":"Rail 7 of 18 (Dr). Slope down: the cart picks up speed.","2,7,5":"Rail 5 of 18 (Dr). Slope down: the cart picks up speed.","2,7,6":"Rail 6 of 18 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,8,4":"Rail 4 of 18 (Dr). Slope down: the cart picks up speed.","2,9,3":"Rail 3 of 18 (Dr). Slope down: the cart picks up speed.","2,10,2":"Rail 2 of 18 (Dr). Slope down: the cart picks up speed.","2,11,1":"Rail 1 of 18 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,12,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,12.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,4.0,18.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,20.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,12,19]},{"id":"m7","group":"No redstone","code":"Dr Dr Dr Fr Dr Dr Fr Dr Dr Dr Fr Fr Dr Fr Fr E","tokens":["Dr","Dr","Dr","Fr","Dr","Dr","Fr","Dr","Dr","Dr","Fr","Fr","Dr","Fr","Fr","E"],"schematic":null,"rails":16,"levers":0,"blocksTotal":36,"run":{"y":[9.5625,9.5546875,9.538984375,9.51531171875,9.4835898359375,9.443738234296875,9.395675616639844,9.339319872806243,9.274588071534305,9.201396452249648,9.119660416772145,9.029294520939866,8.930212466149264,8.822327090810758,8.705550361718865,8.579793365336053,8.444966298989414,8.300978461979309,8.1477382465991,7.985153129065092,7.813129660355743,7.631573456959301,7.440389191528894,7.239480583444183,7.0625,7.0625,7.0625,7.0625,7.0625,7.0541489448631625,6.873752934311794,6.683740463654912,6.484015368291462,6.274480521974376,6.05503782719412,5.825588205466061,5.586031587520721,5.336266903395928,5.076192072429888,5.0625,5.0625,5.0625,5.055470328087262,4.8169625313681355,4.568257156681817,4.309252228248635,4.039844750531122,3.759930698036433,3.4694050050167977,3.168161555066966,2.856093170617637,2.533091602323813,2.199047518347051,2.0625,2.0625,2.0625,2.0625,2.0625,2.0625,2.016977885782792,1.742147664640619,1.4567566412870256,1.1606992076998957,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.1319647930278798,1.2388388773416246,1.2835603357043794,1.300002349259433,1.300002349259433],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.0773468709349077,3.2493703396442566,3.430926543040699,3.622110808471106,3.823019416555817,4.033749610721375,4.24489962629252,4.4476036412408195,4.6421994955911865,4.829011515767539,5.0083510551368375,5.188747065688206,5.378759536345088,5.578484631708538,5.788019478025624,6.00746217280588,6.236911794533939,6.476468412479279,6.726233096604072,6.986307927570112,7.256796006845813,7.517149166571981,7.767088199909102,8.007029671912738,8.245537468631865,8.494242843318183,8.753247771751365,9.022655249468878,9.302569301963567,9.593094994983202,9.894338444933034,10.206406829382363,10.529408397676187,10.86345248165295,11.208649506469479,11.546866026210699,11.871553885162271,12.18325422975578,12.48248656056555,12.769749598142926,13.045522114217208,13.320352335359381,13.605743358712974,13.901800792300104,14.208631300223105,14.508098548214182,14.795587106285614,15.07157612203419,15.336525577152821,15.59087705406671,15.83505447190404,16.06946479302788,16.176338877341625,16.22106033570438,16.237502349259433,16.237502349259433],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.164211,0.1737437,0.1833718,0.1930961,0.2029177,0.21115,0.202704,0.1945959,0.186812,0.1793395,0.1725835,0.1822,0.1919126,0.2017223,0.2116302,0.2216371,0.2317441,0.2419522,0.2522623,0.2626756,0.2603532,0.249939,0.2399415,0.2306953,0.2408929,0.2511924,0.261595,0.2721016,0.2827132,0.2934309,0.3042559,0.3151891,0.3262316,0.3373845,0.3382165,0.3246879,0.3117003,0.2992323,0.287263,0.2757725,0.2670177,0.2775785,0.2882449,0.299018,0.2994672,0.2874886,0.275989,0.2649495,0.2543515,0.2441774,0.2344103,0.2215607,0.0972554,0.0406965,0.0149622,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,2,2,2,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,1,1,1,1,2,2,2,2,2,2,2,4,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,4,4,5,5,5,5,5,6,6,6,7,7,7,7,8,8,8,8,9,9,9,10,10,10,11,11,11,12,12,12,12,13,13,13,14,14,14,14,15,15,15,15],"final_y":1.300002349259433,"yfrac":0.30000234925943303,"inside":true,"margin":2.3373385040770245e-06},"verified":{"runs":60,"floatcarts":60,"spread":5.871697794646025e-09},"blocks":[[2,0,13,"white_stained_glass",{}],[2,0,14,"white_stained_glass",{}],[2,0,15,"white_stained_glass",{}],[2,0,16,"white_stained_glass",{}],[2,1,10,"white_stained_glass",{}],[2,1,11,"white_stained_glass",{}],[2,1,12,"white_stained_glass",{}],[2,1,13,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,14,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,15,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,16,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,1,17,"white_stained_glass",{}],[2,2,9,"white_stained_glass",{}],[2,2,10,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,11,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,12,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,17,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,8,"white_stained_glass",{}],[2,3,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,4,6,"white_stained_glass",{}],[2,4,7,"white_stained_glass",{}],[2,4,8,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,5,"white_stained_glass",{}],[2,5,6,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,7,"rail",{"shape":"north_south","waterlogged":"false"}],[2,6,3,"white_stained_glass",{}],[2,6,4,"white_stained_glass",{}],[2,6,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,2,"white_stained_glass",{}],[2,7,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,4,"rail",{"shape":"north_south","waterlogged":"false"}],[2,8,1,"white_stained_glass",{}],[2,8,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,0,"white_stained_glass",{}],[2,9,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,13":"Rail 13 of 16 (Dr). Slope down: the cart picks up speed.","2,1,14":"Rail 14 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,15":"Rail 15 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,16":"Rail 16 of 16 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,1,17":"The parking slope needs a solid block here, at the foot of its high side.","2,2,10":"Rail 10 of 16 (Dr). Slope down: the cart picks up speed.","2,2,11":"Rail 11 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,12":"Rail 12 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,17":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,3,9":"Rail 9 of 16 (Dr). Slope down: the cart picks up speed.","2,4,8":"Rail 8 of 16 (Dr). Slope down: the cart picks up speed.","2,5,6":"Rail 6 of 16 (Dr). Slope down: the cart picks up speed.","2,5,7":"Rail 7 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,6,5":"Rail 5 of 16 (Dr). Slope down: the cart picks up speed.","2,7,3":"Rail 3 of 16 (Dr). Slope down: the cart picks up speed.","2,7,4":"Rail 4 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,8,2":"Rail 2 of 16 (Dr). Slope down: the cart picks up speed.","2,9,1":"Rail 1 of 16 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,10,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,10.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,3.0,16.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,18.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,10,17]},{"id":"m8","group":"No redstone","code":"Dr Dr Dr Dr Dr Fr Dr Dr Dr Dr Ur Ur Fr Dr Dr E","tokens":["Dr","Dr","Dr","Dr","Dr","Fr","Dr","Dr","Dr","Dr","Ur","Ur","Fr","Dr","Dr","E"],"schematic":null,"rails":16,"levers":0,"blocksTotal":36,"run":{"y":[9.5625,9.5546875,9.538984375,9.51531171875,9.4835898359375,9.443738234296875,9.395675616639844,9.339319872806243,9.274588071534305,9.201396452249648,9.119660416772145,9.029294520939866,8.930212466149264,8.822327090810758,8.705550361718865,8.579793365336053,8.444966298989414,8.300978461979309,8.1477382465991,7.985153129065092,7.813129660355743,7.631573456959301,7.440389191528894,7.239480583444183,7.028750389278625,6.8081003931714115,6.577431397103126,6.336643211074158,6.0856346431849,5.824303489616749,5.552546524512917,5.270259489758047,5.0625,5.0625,5.0625,5.0625,4.879098050812687,4.614451531320815,4.339346046634024,4.053677007100365,3.7573387771713698,3.450224664943084,3.1322269115925145,2.803236680708441,2.4631440475155255,2.111837987990681,1.7492063678705883,1.3751359315492948,1.1354877091352122,1.5098563153130424,1.8427192469348679,2.137812014710729,2.398533933386762,2.6279783793819522,2.828960325237576,3.004041395966194,3.0625,3.0625,3.0625,3.0625,3.0625,3.0625,3.0625,3.0625,2.9767034214875174,2.8617829557023935,2.737900785259418,2.604967293112013,2.4628919660431343,2.3115833857035657,2.1509492195606015,1.9808962117562086,1.8013301738737706,1.6121559756125095,1.4132775353686355,1.2045978107223227,1.138981211170453,1.241633306667783,1.284433760119068,1.3000017164394038,1.3000017164394038],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.0773468709349077,3.2493703396442566,3.430926543040699,3.622110808471106,3.823019416555817,4.033749610721375,4.2543996068285885,4.485068602896874,4.725856788925842,4.9768653568151,5.238196510383251,5.509953475487083,5.792240510241953,6.085162915344372,6.376756398730597,6.656686142781373,6.925418697070118,7.183401949187313,7.448048468679185,7.723153953365976,8.008822992899635,8.30516122282863,8.612275335056916,8.930273088407485,9.25926331929156,9.599355952484474,9.95066201200932,10.313293632129412,10.687364068450705,11.072987709135212,11.447356315313042,11.780219246934868,12.075312014710729,12.336033933386762,12.565478379381952,12.766460325237576,12.941541395966194,13.093052670329236,13.235580563516066,13.372407340975423,13.503761047336406,13.62986060544295,13.75091618122523,13.86712953397622,13.97869435261717,14.085796578512483,14.200717044297607,14.324599214740582,14.457532706887987,14.599608033956866,14.750916614296434,14.911550780439399,15.081603788243791,15.26116982612623,15.45034402438749,15.649222464631364,15.857902189277677,16.076481211170453,16.179133306667783,16.221933760119068,16.237501716439404,16.237501716439404],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.164211,0.1737437,0.1833718,0.1930961,0.2029177,0.2128375,0.2228565,0.2329757,0.2431961,0.2535187,0.2639445,0.2744745,0.2851099,0.2915935,0.2799297,0.2687326,0.2579833,0.256834,0.267293,0.2778565,0.2885257,0.2993016,0.3101853,0.3211777,0.3322801,0.3434936,0.3548191,0.3662579,0.3778111,0.3821811,0.3406754,0.3029053,0.2685344,0.2372569,0.2087944,0.1828936,0.1593238,0.1425279,0.1368268,0.1313537,0.1260996,0.1210556,0.1162134,0.1115648,0.1071022,0.107108,0.1160697,0.125121,0.1342628,0.1434961,0.1528217,0.1622405,0.1717535,0.1813617,0.1910659,0.2008672,0.2107665,0.2131167,0.0934134,0.0389484,0.0141668,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,3,3,3,3,3,3,3,3,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,4,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,3,3,3,3,3,4,4,4,5,5,5,5,6,6,6,7,7,7,7,8,8,8,9,9,10,10,10,11,11,11,11,11,12,12,12,12,12,12,12,12,13,13,13,13,13,13,13,14,14,14,14,14,15,15,15,15],"final_y":1.3000017164394038,"yfrac":0.30000171643940376,"inside":true,"margin":1.7045184748099018e-06},"verified":{"runs":60,"floatcarts":60,"spread":2.7939677238464355e-09},"blocks":[[2,0,10,"white_stained_glass",{}],[2,0,11,"white_stained_glass",{}],[2,0,15,"white_stained_glass",{}],[2,0,16,"white_stained_glass",{}],[2,1,9,"white_stained_glass",{}],[2,1,10,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,11,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,12,"white_stained_glass",{}],[2,1,14,"white_stained_glass",{}],[2,1,15,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,16,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,1,17,"white_stained_glass",{}],[2,2,8,"white_stained_glass",{}],[2,2,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,12,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,2,13,"white_stained_glass",{}],[2,2,14,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,17,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,7,"white_stained_glass",{}],[2,3,8,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,13,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,5,"white_stained_glass",{}],[2,4,6,"white_stained_glass",{}],[2,4,7,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,4,"white_stained_glass",{}],[2,5,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,6,"rail",{"shape":"north_south","waterlogged":"false"}],[2,6,3,"white_stained_glass",{}],[2,6,4,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,2,"white_stained_glass",{}],[2,7,3,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,8,1,"white_stained_glass",{}],[2,8,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,0,"white_stained_glass",{}],[2,9,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,10,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,10":"Rail 10 of 16 (Dr). Slope down: the cart picks up speed.","2,1,11":"Rail 11 of 16 (Ur). Slope up: climbing costs the cart speed.","2,1,15":"Rail 15 of 16 (Dr). Slope down: the cart picks up speed.","2,1,16":"Rail 16 of 16 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,1,17":"The parking slope needs a solid block here, at the foot of its high side.","2,2,9":"Rail 9 of 16 (Dr). Slope down: the cart picks up speed.","2,2,12":"Rail 12 of 16 (Ur). Slope up: climbing costs the cart speed.","2,2,14":"Rail 14 of 16 (Dr). Slope down: the cart picks up speed.","2,2,17":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,3,8":"Rail 8 of 16 (Dr). Slope down: the cart picks up speed.","2,3,13":"Rail 13 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,4,7":"Rail 7 of 16 (Dr). Slope down: the cart picks up speed.","2,5,5":"Rail 5 of 16 (Dr). Slope down: the cart picks up speed.","2,5,6":"Rail 6 of 16 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,6,4":"Rail 4 of 16 (Dr). Slope down: the cart picks up speed.","2,7,3":"Rail 3 of 16 (Dr). Slope down: the cart picks up speed.","2,8,2":"Rail 2 of 16 (Dr). Slope down: the cart picks up speed.","2,9,1":"Rail 1 of 16 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,10,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,10.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,3.0,16.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,18.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,10,17]},{"id":"m9","group":"No redstone","code":"Dr Dr Fr Fr Fr Dr Dr Dr Dr Fr Dr Dr Ur Fr Dr Fr E","tokens":["Dr","Dr","Fr","Fr","Fr","Dr","Dr","Dr","Dr","Fr","Dr","Dr","Ur","Fr","Dr","Fr","E"],"schematic":null,"rails":17,"levers":0,"blocksTotal":38,"run":{"y":[8.5625,8.5546875,8.538984375,8.51531171875,8.4835898359375,8.443738234296875,8.395675616639844,8.339319872806243,8.274588071534305,8.201396452249648,8.119660416772145,8.029294520939866,7.930212466149264,7.822327090810758,7.705550361718865,7.579793365336053,7.444966298989414,7.300978461979309,7.1477382465991015,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.0625,7.062165823330955,7.010912481564264,6.951334106379907,6.883347447443706,6.806868421918143,6.721812106137325,6.628092727198698,6.525623654470685,6.414317391015392,6.294085564925546,6.164838920574802,6.02648730978055,5.8789396828783556,5.722104079707139,5.555887620504211,5.380196496709253,5.194935961676346,5.000010321293109,4.79532292450604,4.580776153751101,4.356271415288612,4.1217091294414985,3.8769887207359144,3.6220086079432736,3.356666194022706,3.0808578559629343,3.0625,3.0625,3.0625,2.9996136146137573,2.7446097507598957,2.479243348267495,2.2034107817501702,1.9170073895676722,1.61992746346335,1.3120642380979834,1.1316901195210356,1.4389005087641422,1.7106494629753684,1.9501285113075841,2.0625,2.0625,2.0625,2.0625,2.0625,2.059667374400304,1.8918265481443068,1.71449481362575,1.5275772617620085,1.3309780343796298,1.124600314723427,1.0625,1.0625,1.0625,1.0625,1.0625,1.189218858842768,1.2680477601948432,1.3000086603100378,1.3000086603100378],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640624998,1.6187617657031248,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.1322875338507354,2.240172909189243,2.3569496382811352,2.4827066346639466,2.617533701010586,2.7615215380206917,2.9147617534008985,3.077346870934907,3.237690496097511,3.39162037625361,3.5393930612034654,3.6812548387553266,3.8174421452051135,3.948181959396909,4.073692181021032,4.194181993780191,4.309852214028983,4.420895625467824,4.527497300449111,4.629834908431147,4.728079012093901,4.822393351610145,4.912935117545739,4.99985521284391,5.083298504330153,5.163404064156946,5.2403054015906685,5.314130685527042,5.38500295810596,5.4530403397817215,5.518356226190453,5.581059477142834,5.641254598057121,5.6990419141348365,5.754517737569443,5.807774528066665,5.858901046943998,5.907982505066238,5.955100704863589,6.000334176669045,6.051587518435736,6.111165893620093,6.179152552556294,6.255631578081857,6.340687893862675,6.434407272801302,6.536876345529315,6.648182608984608,6.768414435074454,6.897661079425198,7.03601269021945,7.1835603171216444,7.340395920292861,7.506612379495789,7.682303503290747,7.867564038323654,8.062489678706891,8.26717707549396,8.481723846248899,8.706228584711388,8.940790870558502,9.185511279264086,9.440491392056726,9.705833805977294,9.981642144037066,10.268021065477436,10.543862722858337,10.808670713944004,11.062886385386243,11.317890249240104,11.583256651732505,11.85908921824983,12.145492610432328,12.44257253653665,12.750435761902017,13.069190119521036,13.376400508764142,13.648149462975368,13.887628511307584,14.0977419452899,14.293832267478304,14.48207897677917,14.662795817708004,14.836283984999683,15.002832625599696,15.170673451855693,15.34800518637425,15.534922738237992,15.73152196562037,15.937899685276573,16.154153682129337,16.364862534844164,16.567143033450396,16.76133231211238,16.947754019627883,17.126718858842768,17.205547760194843,17.237508660310038,17.237508660310038],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1000729,0.1089642,0.1179445,0.1270146,0.1361753,0.1454277,0.1547726,0.1603436,0.1539299,0.1477727,0.1418618,0.1361873,0.1307398,0.1255102,0.1204898,0.1156702,0.1110434,0.1066017,0.1023376,0.0982441,0.0943143,0.0905418,0.0869201,0.0834433,0.0801056,0.0769013,0.0738253,0.0708723,0.0680374,0.0653159,0.0627033,0.0601951,0.0577873,0.0554758,0.0532568,0.0511265,0.0490815,0.0471182,0.0452335,0.0434408,0.0517659,0.0601742,0.0686665,0.0772438,0.0859069,0.0946566,0.1034938,0.1124193,0.1214341,0.1305391,0.1397351,0.1490231,0.158404,0.1678786,0.177448,0.1871131,0.1968749,0.2067343,0.2166922,0.2267498,0.2369079,0.2471676,0.2575299,0.2679958,0.2785664,0.2758417,0.264808,0.2542157,0.2471914,0.2575539,0.2680201,0.2785909,0.2892674,0.3000507,0.3109419,0.3150229,0.2795615,0.2472915,0.2179259,0.1960903,0.1882467,0.1807168,0.1734882,0.1665486,0.1600283,0.1695192,0.1791051,0.1887867,0.1985652,0.2084415,0.2107089,0.2022805,0.1941893,0.1864217,0.1789648,0.1654703,0.0717343,0.0290844,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,2,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,2,2,1,1,1,1,1,1,1,3,3,3,3,2,2,2,2,2,1,1,1,1,1,1,2,2,2,2,2,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,2,2,2,2,2,2,2,3,3,3,3,3,3,3,3,3,3,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,6,6,6,6,6,6,7,7,7,7,7,8,8,8,8,9,9,9,10,10,10,10,11,11,11,12,12,12,12,13,13,13,13,13,14,14,14,14,14,14,15,15,15,15,15,16,16,16],"final_y":1.3000086603100378,"yfrac":0.3000086603100378,"inside":true,"margin":1.3516106385225157e-06},"verified":{"runs":60,"floatcarts":60,"spread":4.284083843231201e-08},"blocks":[[2,0,12,"white_stained_glass",{}],[2,0,13,"white_stained_glass",{}],[2,0,15,"white_stained_glass",{}],[2,0,16,"white_stained_glass",{}],[2,0,17,"white_stained_glass",{}],[2,1,11,"white_stained_glass",{}],[2,1,12,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,13,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,14,"white_stained_glass",{}],[2,1,15,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,16,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,17,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,1,18,"white_stained_glass",{}],[2,2,9,"white_stained_glass",{}],[2,2,10,"white_stained_glass",{}],[2,2,11,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,2,14,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,18,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,8,"white_stained_glass",{}],[2,3,9,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,10,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,7,"white_stained_glass",{}],[2,4,8,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,5,6,"white_stained_glass",{}],[2,5,7,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,6,2,"white_stained_glass",{}],[2,6,3,"white_stained_glass",{}],[2,6,4,"white_stained_glass",{}],[2,6,5,"white_stained_glass",{}],[2,6,6,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,1,"white_stained_glass",{}],[2,7,2,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,7,3,"rail",{"shape":"north_south","waterlogged":"false"}],[2,7,4,"rail",{"shape":"north_south","waterlogged":"false"}],[2,7,5,"rail",{"shape":"north_south","waterlogged":"false"}],[2,8,0,"white_stained_glass",{}],[2,8,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,9,0,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,12":"Rail 12 of 17 (Dr). Slope down: the cart picks up speed.","2,1,13":"Rail 13 of 17 (Ur). Slope up: climbing costs the cart speed.","2,1,15":"Rail 15 of 17 (Dr). Slope down: the cart picks up speed.","2,1,16":"Rail 16 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,17":"Rail 17 of 17 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,1,18":"The parking slope needs a solid block here, at the foot of its high side.","2,2,11":"Rail 11 of 17 (Dr). Slope down: the cart picks up speed.","2,2,14":"Rail 14 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,18":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,3,9":"Rail 9 of 17 (Dr). Slope down: the cart picks up speed.","2,3,10":"Rail 10 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,4,8":"Rail 8 of 17 (Dr). Slope down: the cart picks up speed.","2,5,7":"Rail 7 of 17 (Dr). Slope down: the cart picks up speed.","2,6,6":"Rail 6 of 17 (Dr). Slope down: the cart picks up speed.","2,7,2":"Rail 2 of 17 (Dr). Slope down: the cart picks up speed.","2,7,3":"Rail 3 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,7,4":"Rail 4 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,7,5":"Rail 5 of 17 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,8,1":"Rail 1 of 17 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,9,0":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,9.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,3.0,17.5],"t":"Parking slope"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,19.25],"t":"S","cls":"compass"}],"bounds":[2,0,0,2,9,18]},{"id":"m10","group":"With powered rails","code":"Dr Up Fr Dp Fr Up Fr Ur Ur E","tokens":["Dr","Up","Fr","Dp","Fr","Up","Fr","Ur","Ur","E"],"schematic":null,"rails":10,"levers":3,"blocksTotal":30,"run":{"y":[1.5625,1.5546875,1.538984375,1.51531171875,1.4835898359375,1.443738234296875,1.3956756166398439,1.3393198728062423,1.2745880715343048,1.2013964522496479,1.1196604167721445,1.095705479060134,1.175841985944722,1.3009537072096968,1.466992873560824,1.6702760149403497,1.9074511735957183,2.0625,2.0625,2.0625,2.057550583414633,1.7756260892487798,1.4230698501412675,1.0625,1.0625,1.0625,1.301930149858734,1.7019301498587343,2.0625,2.0625,2.0625,2.3019301498587357,2.6803370046426718,3.0168747424960536,3.3153115839426306,3.579076609659017,3.811290283060929,4.014792225856668,4.192166493800791,4.268965535715367,4.300002849786498,4.300002849786498],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640625,1.618761765703125,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.113341985944722,2.238453707209697,2.404492873560824,2.6077760149403497,2.8449511735957183,3.1129680679721035,3.4225118452532195,3.719673871443091,4.004949416585367,4.28687391075122,4.6394301498587325,5.039430149858733,5.439430149858733,5.8394301498587335,6.239430149858734,6.639430149858734,7.039430149858735,7.439430149858735,7.839430149858735,8.239430149858736,8.617837004642672,8.954374742496054,9.25281158394263,9.516576609659017,9.748790283060929,9.952292225856668,10.12966649380079,10.206465535715367,10.237502849786498,10.237502849786498],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.087949,0.1329242,0.1738517,0.2110956,0.2449877,0.2758294,0.3095438,0.297162,0.2852755,0.274112,0.3447437,0.4160818,0.484967,0.4655683,0.4469456,0.4170963,0.4329124,0.4500674,0.4320647,0.4147821,0.3862194,0.3443502,0.3062493,0.2715775,0.2400262,0.2113144,0.1851868,0.1614106,0.0698871,0.028244,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,7,7,7,7,7,7,2,2,2,8,8,8,2,2,2,7,7,2,2,2,3,3,3,3,3,3,3,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,2,2,2,3,3,3,4,4,4,5,5,6,6,6,7,7,7,8,8,8,8,9,9,9],"final_y":4.300002849786498,"yfrac":0.30000284978649816,"inside":true,"margin":2.837865569205178e-06},"verified":{"runs":60,"floatcarts":60,"spread":9.313225746154785e-10},"blocks":[[2,0,1,"white_stained_glass",{}],[2,0,2,"white_stained_glass",{}],[2,0,4,"white_stained_glass",{}],[2,0,5,"white_stained_glass",{}],[2,0,6,"white_stained_glass",{}],[2,1,0,"white_stained_glass",{}],[2,1,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[0,1,2,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,1,2,"white_concrete",{}],[2,1,2,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,1,3,"white_stained_glass",{}],[0,1,4,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,1,4,"white_concrete",{}],[2,1,4,"powered_rail",{"shape":"ascending_north","waterlogged":"false","powered":"true"}],[2,1,5,"rail",{"shape":"north_south","waterlogged":"false"}],[0,1,6,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,1,6,"white_concrete",{}],[2,1,6,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,1,7,"white_stained_glass",{}],[2,1,8,"white_stained_glass",{}],[2,2,0,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,3,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,7,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,8,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,2,9,"white_stained_glass",{}],[2,3,9,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,3,10,"white_stained_glass",{}],[2,4,10,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,4,11,"white_stained_glass",{}],[2,5,11,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,1":"Rail 1 of 10 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","0,1,2":"Powers the concrete block it sits on, which powers the rail next to it.","1,1,2":"Powered by its lever; powers the rail next to it.","2,1,2":"Rail 2 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","0,1,4":"Powers the concrete block it sits on, which powers the rail next to it.","1,1,4":"Powered by its lever; powers the rail next to it.","2,1,4":"Rail 4 of 10 (Dp). Powered slope down, ON: boosts the cart as it rolls down.","2,1,5":"Rail 5 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","0,1,6":"Powers the concrete block it sits on, which powers the rail next to it.","1,1,6":"Powered by its lever; powers the rail next to it.","2,1,6":"Rail 6 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","2,2,0":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,2,3":"Rail 3 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,7":"Rail 7 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,8":"Rail 8 of 10 (Ur). Slope up: climbing costs the cart speed.","2,3,9":"Rail 9 of 10 (Ur). Slope up: climbing costs the cart speed.","2,4,10":"Rail 10 of 10 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,4,11":"The parking slope needs a solid block here, at the foot of its high side.","2,5,11":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,2.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,6.0,10.5],"t":"Parking slope"},{"p":[0.5,0.95,2.5],"t":"Lever","cls":"below"},{"p":[0.5,0.95,4.5],"t":"Lever","cls":"below"},{"p":[0.5,0.95,6.5],"t":"Lever","cls":"below"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,12.25],"t":"S","cls":"compass"}],"bounds":[0,0,0,2,5,11]},{"id":"m11","group":"With powered rails","code":"S Dp Fr Fr Up Ur Up Fr Ur E","tokens":["S","Dp","Fr","Fr","Up","Ur","Up","Fr","Ur","E"],"schematic":null,"rails":10,"levers":3,"blocksTotal":28,"run":{"y":[2.0625,2.0625,2.0625,2.0625,2.0625,2.0625,1.8937101888,1.584209790688,1.2038018885948798,1.0625,1.0625,1.0625,1.0625,1.0625,1.3211981114051214,1.7089594365201606,2.108959436520161,2.5089594365201613,2.885341298395839,3.220036292702706,3.5167962375219552,3.839035287307472,4.0625,4.0625,4.0625,4.280721237272546,4.59858203708051,4.880022864905756,5.1283215182267305,5.237391155487774,5.28311159044155,5.300008138345516,5.300008138345516],"z":[1.5,1.5,1.52,1.5992,1.7352319999999999,1.9258227199999998,2.1687898112,2.478290209312,2.85869811140512,3.25869811140512,3.65869811140512,4.05869811140512,4.458698111405121,4.858698111405121,5.2586981114051214,5.646459436520161,6.046459436520161,6.446459436520161,6.822841298395839,7.157536292702706,7.454296237521955,7.776535287307472,8.121960322612292,8.502395120870293,8.867612527197974,9.218221237272546,9.53608203708051,9.817522864905756,10.06582151822673,10.174891155487774,10.22061159044155,10.237508138345516,10.237508138345516],"vz":[0.0,0.02,0.0792,0.136032,0.1905907,0.2429671,0.3016879,0.3725954,0.444212,0.5010086,0.4809683,0.4617295,0.4432603,0.4255299,0.3955738,0.4128628,0.4288483,0.3841944,0.3425075,0.3045724,0.3300515,0.3532375,0.3804348,0.3652174,0.3506087,0.3256733,0.2892533,0.2561112,0.2259518,0.0992534,0.0416056,0.0153759,0.0],"ph":[9,10,6,6,6,6,6,8,8,8,2,2,2,2,2,7,7,3,3,3,7,7,7,2,2,2,3,3,3,4,4,4,5],"rail":[0,0,0,0,0,0,0,1,1,1,2,2,3,3,3,4,4,5,5,5,6,6,6,7,7,7,8,8,8,9,9,9,9],"final_y":5.300008138345516,"yfrac":0.30000813834551643,"inside":true,"margin":1.873575159905272e-06},"verified":{"runs":60,"floatcarts":60,"spread":1.6298145055770874e-09},"blocks":[[2,0,2,"white_stained_glass",{}],[2,0,3,"white_stained_glass",{}],[2,0,4,"white_stained_glass",{}],[2,0,5,"white_stained_glass",{}],[2,1,1,"white_stained_glass",{}],[2,1,2,"powered_rail",{"shape":"ascending_north","waterlogged":"false","powered":"true"}],[2,1,3,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,4,"rail",{"shape":"north_south","waterlogged":"false"}],[0,1,5,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,1,5,"white_concrete",{}],[2,1,5,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,1,6,"white_stained_glass",{}],[1,2,0,"lever",{"face":"wall","facing":"west","powered":"true"}],[2,2,0,"white_concrete",{}],[2,2,1,"powered_rail",{"shape":"north_south","waterlogged":"false","powered":"true"}],[2,2,6,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,2,7,"white_stained_glass",{}],[0,3,7,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,3,7,"white_concrete",{}],[2,3,7,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,3,8,"white_stained_glass",{}],[2,3,9,"white_stained_glass",{}],[2,4,8,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,9,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,4,10,"white_stained_glass",{}],[2,5,10,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,5,11,"white_stained_glass",{}],[2,6,11,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,2":"Rail 2 of 10 (Dp). Powered slope down, ON: boosts the cart as it rolls down.","2,1,3":"Rail 3 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,4":"Rail 4 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","0,1,5":"Powers the concrete block it sits on, which powers the rail next to it.","1,1,5":"Powered by its lever; powers the rail next to it.","2,1,5":"Rail 5 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","1,2,0":"Powers the concrete block it sits on, which powers the rail next to it.","2,2,0":"Conductor behind the start rail: the standing start pushes the cart away from it. The lever on it powers the start rail.","2,2,1":"Rail 1 of 10 (start). Start: place a plain, empty minecart here. The concrete behind it pushes the cart off once the rail is powered.","2,2,6":"Rail 6 of 10 (Ur). Slope up: climbing costs the cart speed.","0,3,7":"Powers the concrete block it sits on, which powers the rail next to it.","1,3,7":"Powered by its lever; powers the rail next to it.","2,3,7":"Rail 7 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","2,4,8":"Rail 8 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,4,9":"Rail 9 of 10 (Ur). Slope up: climbing costs the cart speed.","2,5,10":"Rail 10 of 10 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,5,11":"The parking slope needs a solid block here, at the foot of its high side.","2,6,11":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,3.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,7.0,10.5],"t":"Parking slope"},{"p":[1.5,1.95,0.5],"t":"Lever","cls":"below"},{"p":[0.5,0.95,5.5],"t":"Lever","cls":"below"},{"p":[0.5,2.95,7.5],"t":"Lever","cls":"below"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,12.25],"t":"S","cls":"compass"}],"bounds":[0,0,0,2,6,11]},{"id":"m12","group":"With powered rails","code":"Dr Dp Fr Dr Ur Up Fr Up Ur E","tokens":["Dr","Dp","Fr","Dr","Ur","Up","Fr","Up","Ur","E"],"schematic":null,"rails":10,"levers":3,"blocksTotal":30,"run":{"y":[3.5625,3.5546875,3.538984375,3.51531171875,3.4835898359375,3.443738234296875,3.395675616639844,3.339319872806242,3.2745880715343048,3.201396452249648,3.1196604167721445,3.029294520939866,2.930212466149265,2.7623270908107576,2.524950361718865,2.217387365336054,2.0625,2.0625,2.0389362389894146,1.6389362389894142,1.2389362389894139,1.2860637610105865,1.6860637610105869,2.04377764637057,2.361484782048154,2.6427857755147564,2.9509571795693637,3.0625,3.0625,3.0625,3.360553868469605,3.6685011441582756,4.0009206650349665,4.355609929032756,4.730564659270744,5.063960963787313,5.211750032342351,5.275087808534893,5.300000246702501,5.300000246702501],"z":[1.5,1.5078125,1.523515625,1.54718828125,1.5789101640625,1.618761765703125,1.6668243833601561,1.7231801271937577,1.7879119284656952,1.8611035477503521,1.9428395832278555,2.033205479060134,2.132287533850735,2.3001729091892424,2.537549638281135,2.845112634663946,3.2235637610105856,3.6235637610105855,4.023563761010585,4.423563761010586,4.823563761010586,5.2235637610105865,5.623563761010587,5.98127764637057,6.298984782048154,6.580285775514756,6.888457179569364,7.221080657259057,7.59482205481963,7.95361379647778,8.298053868469605,8.606001144158276,8.938420665034966,9.293109929032756,9.668064659270744,10.001460963787313,10.149250032342351,10.212587808534893,10.237500246702501,10.237500246702501],"vz":[0.0,0.0078906,0.0158602,0.0239094,0.0320391,0.0402501,0.0485432,0.0569193,0.0653791,0.0739235,0.0825534,0.0912696,0.1600729,0.2295642,0.2997505,0.3706386,0.4310574,0.4138152,0.3984407,0.4100031,0.421103,0.4094025,0.3655264,0.3255196,0.2891135,0.3159839,0.340436,0.3737414,0.3587917,0.3444401,0.3157598,0.340232,0.3625018,0.3827672,0.3412088,0.3033906,0.1344881,0.0576374,0.0226703,0.0],"ph":[0,1,1,1,1,1,1,1,1,1,1,1,8,8,8,8,8,2,2,1,1,1,3,3,3,7,7,7,2,2,2,7,7,7,3,3,4,4,4,5],"rail":[0,0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,2,2,3,3,3,4,4,4,5,5,5,6,6,6,7,7,7,8,8,9,9,9,9],"final_y":5.300000246702501,"yfrac":0.3000002467025009,"inside":true,"margin":2.3478157196166194e-07},"verified":{"runs":60,"floatcarts":60,"spread":4.656612873077393e-10},"blocks":[[2,0,4,"white_stained_glass",{}],[2,0,5,"white_stained_glass",{}],[2,1,2,"white_stained_glass",{}],[2,1,3,"white_stained_glass",{}],[2,1,4,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,1,5,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,6,"white_stained_glass",{}],[2,2,1,"white_stained_glass",{}],[0,2,2,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,2,2,"white_concrete",{}],[2,2,2,"powered_rail",{"shape":"ascending_north","waterlogged":"false","powered":"true"}],[2,2,3,"rail",{"shape":"north_south","waterlogged":"false"}],[0,2,6,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,2,6,"white_concrete",{}],[2,2,6,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,2,7,"white_stained_glass",{}],[2,2,8,"white_stained_glass",{}],[2,3,0,"white_stained_glass",{}],[2,3,1,"rail",{"shape":"ascending_north","waterlogged":"false"}],[2,3,7,"rail",{"shape":"north_south","waterlogged":"false"}],[0,3,8,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,3,8,"white_concrete",{}],[2,3,8,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,3,9,"white_stained_glass",{}],[2,4,0,"rail",{"shape":"north_south","waterlogged":"false"}],[2,4,9,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,4,10,"white_stained_glass",{}],[2,5,10,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,5,11,"white_stained_glass",{}],[2,6,11,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"2,1,4":"Rail 4 of 10 (Dr). Slope down: the cart picks up speed.","2,1,5":"Rail 5 of 10 (Ur). Slope up: climbing costs the cart speed.","0,2,2":"Powers the concrete block it sits on, which powers the rail next to it.","1,2,2":"Powered by its lever; powers the rail next to it.","2,2,2":"Rail 2 of 10 (Dp). Powered slope down, ON: boosts the cart as it rolls down.","2,2,3":"Rail 3 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","0,2,6":"Powers the concrete block it sits on, which powers the rail next to it.","1,2,6":"Powered by its lever; powers the rail next to it.","2,2,6":"Rail 6 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","2,3,1":"Rail 1 of 10 (start). Start: place a plain, empty minecart here. It rolls off down the slope by itself.","2,3,7":"Rail 7 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","0,3,8":"Powers the concrete block it sits on, which powers the rail next to it.","1,3,8":"Powered by its lever; powers the rail next to it.","2,3,8":"Rail 8 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","2,4,0":"Keeps the end slope's shape when it is placed; the cart never gets here.","2,4,9":"Rail 9 of 10 (Ur). Slope up: climbing costs the cart speed.","2,5,10":"Rail 10 of 10 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,5,11":"The parking slope needs a solid block here, at the foot of its high side.","2,6,11":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,4.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,7.0,10.5],"t":"Parking slope"},{"p":[0.5,1.95,2.5],"t":"Lever","cls":"below"},{"p":[0.5,1.95,6.5],"t":"Lever","cls":"below"},{"p":[0.5,2.95,8.5],"t":"Lever","cls":"below"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,12.25],"t":"S","cls":"compass"}],"bounds":[0,0,0,2,6,11]},{"id":"m13","group":"With powered rails","code":"S Fr Ur Fp Dr Up Fr Ur Fr E","tokens":["S","Fr","Ur","Fp","Dr","Up","Fr","Ur","Fr","E"],"schematic":null,"rails":10,"levers":3,"blocksTotal":28,"run":{"y":[1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.0763144224018433,1.3272586243856774,1.5478053481909666,1.7406903668537796,1.9084032338369394,2.0532094427916148,2.0625,2.0625,2.0625,2.0625,2.0625,1.8242186540988206,1.4308983406398088,1.0941016593601915,1.4919923693540298,1.8919923693540301,2.0625,2.0625,2.091992369354031,2.4919923693540316,2.865926880343144,3.0625,3.0625,3.0625,3.0897904647094148,3.222044305912979,3.2783135536606007,3.3000098113857685,3.3000098113857685],"z":[1.5,1.5,1.52,1.5992,1.7352319999999999,1.9258227199999998,2.1687898112,2.462038218752,2.74355669000192,3.0138144224018433,3.2647586243856774,3.4853053481909666,3.6781903668537796,3.8459032338369394,3.9907094427916148,4.114670592940369,4.233208769222754,4.407005418453844,4.63385020171569,4.911621193647062,5.238281345901179,5.631601659360191,6.0316016593601915,6.42949236935403,6.82949236935403,7.2294923693540305,7.629492369354031,8.029492369354031,8.429492369354032,8.803426880343144,9.135894785343236,9.445235318160483,9.74220222966504,10.027290464709415,10.159544305912979,10.2158135536606,10.237509811385769,10.237509811385769],"vz":[0.0,0.02,0.0792,0.136032,0.1905907,0.2429671,0.2932484,0.2815185,0.2702577,0.2587567,0.2283592,0.2006975,0.1755254,0.1526187,0.1317737,0.1185382,0.1737966,0.2268448,0.277771,0.3266602,0.3855078,0.3972535,0.4057032,0.4220805,0.4376973,0.464164,0.4455975,0.426299,0.381747,0.3402804,0.3093405,0.2969669,0.2850882,0.2723202,0.120351,0.051205,0.0197436,0.0],"ph":[9,10,6,6,6,6,6,2,2,2,3,3,3,3,3,3,6,6,6,6,6,1,1,7,7,7,2,2,3,3,3,2,2,2,4,4,4,5],"rail":[0,0,0,0,0,0,0,1,1,1,2,2,2,2,2,2,3,3,3,3,3,4,4,5,5,5,6,6,7,7,7,8,8,8,9,9,9,9],"final_y":3.3000098113857685,"yfrac":0.30000981138576854,"inside":true,"margin":2.0053490779048389e-07},"verified":{"runs":60,"floatcarts":60,"spread":9.546056389808655e-09},"blocks":[[2,0,1,"white_stained_glass",{}],[2,0,2,"white_stained_glass",{}],[2,0,3,"white_stained_glass",{}],[2,0,5,"white_stained_glass",{}],[2,0,6,"white_stained_glass",{}],[1,1,0,"lever",{"face":"wall","facing":"west","powered":"true"}],[2,1,0,"white_concrete",{}],[2,1,1,"powered_rail",{"shape":"north_south","waterlogged":"false","powered":"true"}],[2,1,2,"rail",{"shape":"north_south","waterlogged":"false"}],[2,1,3,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,1,4,"white_stained_glass",{}],[2,1,5,"rail",{"shape":"ascending_north","waterlogged":"false"}],[0,1,6,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,1,6,"white_concrete",{}],[2,1,6,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"true"}],[2,1,7,"white_stained_glass",{}],[2,1,8,"white_stained_glass",{}],[0,2,4,"lever",{"face":"wall","facing":"west","powered":"true"}],[1,2,4,"white_concrete",{}],[2,2,4,"powered_rail",{"shape":"north_south","waterlogged":"false","powered":"true"}],[2,2,7,"rail",{"shape":"north_south","waterlogged":"false"}],[2,2,8,"rail",{"shape":"ascending_south","waterlogged":"false"}],[2,2,9,"white_stained_glass",{}],[2,2,10,"white_stained_glass",{}],[2,3,9,"rail",{"shape":"north_south","waterlogged":"false"}],[2,3,10,"powered_rail",{"shape":"ascending_south","waterlogged":"false","powered":"false"}],[2,3,11,"white_stained_glass",{}],[2,4,11,"rail",{"shape":"north_south","waterlogged":"false"}]],"notes":{"1,1,0":"Powers the concrete block it sits on, which powers the rail next to it.","2,1,0":"Conductor behind the start rail: the standing start pushes the cart away from it. The lever on it powers the start rail.","2,1,1":"Rail 1 of 10 (start). Start: place a plain, empty minecart here. The concrete behind it pushes the cart off once the rail is powered.","2,1,2":"Rail 2 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,1,3":"Rail 3 of 10 (Ur). Slope up: climbing costs the cart speed.","2,1,5":"Rail 5 of 10 (Dr). Slope down: the cart picks up speed.","0,1,6":"Powers the concrete block it sits on, which powers the rail next to it.","1,1,6":"Powered by its lever; powers the rail next to it.","2,1,6":"Rail 6 of 10 (Up). Powered slope up, ON: boosts the cart while it climbs.","0,2,4":"Powers the concrete block it sits on, which powers the rail next to it.","1,2,4":"Powered by its lever; powers the rail next to it.","2,2,4":"Rail 4 of 10 (Fp). Powered rail, ON: +0.06 blocks/tick every tick.","2,2,7":"Rail 7 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,2,8":"Rail 8 of 10 (Ur). Slope up: climbing costs the cart speed.","2,3,9":"Rail 9 of 10 (Fr). Flat rail: the cart coasts, keeping 96% of its speed each tick.","2,3,10":"Rail 10 of 10 (parking). Parking slope: a powered rail with no power, so it brakes the cart. Where the cart stops on it sets the y fraction.","2,3,11":"The parking slope needs a solid block here, at the foot of its high side.","2,4,11":"Keeps the end slope's shape when it is placed; the cart never gets here."},"labels":[{"p":[2.5,2.35,1.5],"t":"Start: place the cart here"},{"p":[2.5,5.0,10.5],"t":"Parking slope"},{"p":[1.5,0.95,0.5],"t":"Lever","cls":"below"},{"p":[0.5,1.95,4.5],"t":"Lever","cls":"below"},{"p":[0.5,0.95,6.5],"t":"Lever","cls":"below"},{"p":[2.5,0,-1.25],"t":"N","cls":"compass"},{"p":[2.5,0,12.25],"t":"S","cls":"compass"}],"bounds":[0,0,0,2,4,11]}],"phases":["Minecart placed on the start slope","Slope down: the slope speeds it up","Flat rail: coasting, it keeps 96% of its speed each tick","Slope up: climbing costs speed","Parking slope: unpowered, so it brakes the cart (speed halved each tick)","Stopped on the parking slope: a floatcart","Powered rail (ON): +0.06 blocks/tick every tick","Powered slope up (ON): boosted while it climbs","Powered slope down (ON): boosted, and the slope speeds it up","Minecart placed on the start rail","Standing start: the concrete behind the rail pushes the cart off at 0.02 blocks/tick"],"phaseRules":[["M3","R2"],["R3","R10","R8"],["R8","R4"],["R3","R10","R8"],["P3","R3","R10"],["P3","R2","X3"],["P1","R8"],["P1","R3","R10"],["P1","R3","R10"],["M3","R2"],["P2","P4"]],"ruleNames":{"M3":"Placing","P1":"Boost","P2":"Standing start","P3":"Halt rail","P4":"Conductors","R10":"Height and speed","R2":"Height on the track","R3":"Slope pull","R4":"Steering","R8":"Rail friction","X3":"Floatcart window"},"window":[0.30000001192092896,0.30001001192067633]};
+var RULES_PAGE = 'floatcart-simulator-rules.html';
+
+/* theme button: follows the system until clicked; shares its choice with the rules page */
+(function () {
+  var root = document.documentElement, KEY = 'floatcart-rules-theme', btn = document.getElementById('theme');
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function sync() {
+    var d = isDark();
+    btn.querySelector('.label').textContent = d ? 'Light mode' : 'Dark mode';
+    btn.setAttribute('aria-label', d ? 'Switch to light mode' : 'Switch to dark mode');
+    btn.setAttribute('aria-pressed', String(d));
+  }
+  btn.addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem(KEY, next); } catch (e) { /* ignore */ }
+    sync();
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', sync);
+  }
+  sync();
+})();
+
+/* ---------------- small helpers ---------------- */
+var $ = function (s) { return document.querySelector(s); };
+function hex(h, a) {
+  h = String(h).trim().replace('#', '');
+  if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+  var n = parseInt(h, 16);
+  return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255, a == null ? 1 : a];
+}
+function shade(c, k, a) { return [c[0] * k, c[1] * k, c[2] * k, a == null ? c[3] : a]; }
+function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+function vcross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+function vnorm(a) { var l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+function ident() { var m = new Float32Array(16); m[0] = m[5] = m[10] = m[15] = 1; return m; }
+function mmul(a, b) {
+  var o = new Float32Array(16);
+  for (var c = 0; c < 4; c++) for (var r = 0; r < 4; r++) {
+    var s = 0; for (var k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k];
+    o[c * 4 + r] = s;
+  }
+  return o;
+}
+function chain() { var m = arguments[0]; for (var i = 1; i < arguments.length; i++) m = mmul(m, arguments[i]); return m; }
+function T(x, y, z) { var m = ident(); m[12] = x; m[13] = y; m[14] = z; return m; }
+function S(x, y, z) { var m = ident(); m[0] = x; m[5] = y; m[10] = z; return m; }
+function RX(a) { var m = ident(), c = Math.cos(a), s = Math.sin(a); m[5] = c; m[6] = s; m[9] = -s; m[10] = c; return m; }
+function RZ(a) { var m = ident(), c = Math.cos(a), s = Math.sin(a); m[0] = c; m[1] = s; m[4] = -s; m[5] = c; return m; }
+function boxM(mn, sz) { return chain(T(mn[0], mn[1], mn[2]), S(sz[0], sz[1], sz[2])); }
+function persp(fovy, asp, n, f) {
+  var t = 1 / Math.tan(fovy / 2), o = new Float32Array(16);
+  o[0] = t / asp; o[5] = t; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f);
+  return o;
+}
+function lookAt(e, c, up) {
+  var z = vnorm(vsub(e, c)), x = vnorm(vcross(up, z)), y = vcross(z, x), o = new Float32Array(16);
+  o[0] = x[0]; o[4] = x[1]; o[8] = x[2]; o[1] = y[0]; o[5] = y[1]; o[9] = y[2];
+  o[2] = z[0]; o[6] = z[1]; o[10] = z[2];
+  o[12] = -vdot(x, e); o[13] = -vdot(y, e); o[14] = -vdot(z, e); o[15] = 1;
+  return { m: o, x: x, y: y, z: z };
+}
+function normalMat(m) {
+  var a00 = m[0], a01 = m[1], a02 = m[2], a10 = m[4], a11 = m[5], a12 = m[6], a20 = m[8], a21 = m[9], a22 = m[10];
+  var b01 = a22 * a11 - a12 * a21, b11 = -a22 * a10 + a12 * a20, b21 = a21 * a10 - a11 * a20;
+  var det = a00 * b01 + a01 * b11 + a02 * b21; det = det ? 1 / det : 0;
+  var inv = [b01 * det, (-a22 * a01 + a02 * a21) * det, (a12 * a01 - a02 * a11) * det,
+             b11 * det, (a22 * a00 - a02 * a20) * det, (-a12 * a00 + a02 * a10) * det,
+             b21 * det, (-a21 * a00 + a01 * a20) * det, (a11 * a00 - a01 * a10) * det];
+  return new Float32Array([inv[0], inv[3], inv[6], inv[1], inv[4], inv[7], inv[2], inv[5], inv[8]]);
+}
+function xf(m, p) {
+  return [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12],
+          m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+          m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+}
+function aabbOf(m) {
+  var mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+  for (var i = 0; i < 8; i++) {
+    var p = xf(m, [i & 1, (i >> 1) & 1, (i >> 2) & 1]);
+    for (var k = 0; k < 3; k++) { mn[k] = Math.min(mn[k], p[k]); mx[k] = Math.max(mx[k], p[k]); }
+  }
+  return mn.concat(mx);
+}
+function unionBox(list) {
+  var b = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+  list.forEach(function (o) { for (var k = 0; k < 3; k++) { b[k] = Math.min(b[k], o.aabb[k]); b[k + 3] = Math.max(b[k + 3], o.aabb[k + 3]); } });
+  return b;
+}
+function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+
+/* ---------------- state ---------------- */
+var st = { sol: 0, t: 0, playing: false, speed: 0.5, paths: true, dots: true, labels: true, follow: false };
+function M() { return D.makers[st.sol]; }
+function R() { return M().run; }
+function tmax() { return R().y.length - 1; }
+
+/* ---------------- panel wiring ---------------- */
+var ui = {
+  sol: $('#sol'), solPrev: $('#solPrev'), solNext: $('#solNext'), code: $('#code'),
+  desc: $('#runDesc'), play: $('#play'), back: $('#back'), fwd: $('#fwd'), speed: $('#speed'),
+  tick: $('#tick'), marks: $('#marks'), tickNum: $('#tickNum'), tickMax: $('#tickMax'), railNow: $('#railNow'),
+  phase: $('#phase'), phaseRules: $('#phaseRules'), vY: $('#vY'), vZ: $('#vZ'), vV: $('#vV'),
+  fin: $('#fin'), verdict: $('#verdict'), band: $('#band'), mk: $('#mk'), offscale: $('#offscale')
+};
+var GLO = 0.299995, GHI = 0.300015;
+function gpos(v) { return (v - GLO) / (GHI - GLO) * 100; }
+ui.band.style.left = gpos(D.window[0]) + '%';
+ui.band.style.width = (gpos(D.window[1]) - gpos(D.window[0])) + '%';
+
+function curTick() { return Math.max(0, Math.ceil(st.t - 1e-9)); }
+
+var TOKEN_TITLE = { F: 'flat', U: 'slope up', D: 'slope down', r: 'plain rail', p: 'powered rail, on', h: 'powered rail, off' };
+function tokenTitle(tk, j, n) {
+  if (j === 0 && tk === 'S') return 'Start: flat powered rail, on, with concrete behind it';
+  if (j === n - 1) return 'Parking slope: powered rail, off';
+  return (j === 0 ? 'Start: ' : '') + TOKEN_TITLE[tk[0]] + ', ' + TOKEN_TITLE[tk[1]];
+}
+function sci(v) {
+  var e = Math.floor(Math.log10(Math.abs(v))), m = v / Math.pow(10, e), sup = '\u2070\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079';
+  return m.toFixed(1) + '\u00d710' + (e < 0 ? '\u207b' : '') + String(Math.abs(e)).replace(/\d/g, function (d) { return sup[+d]; });
+}
+function makerName(m, i) {
+  return (i + 1) + '. ' + (m.levers ? m.levers + (m.levers > 1 ? ' levers' : ' lever') : 'No redstone') + ', ' + m.rails + ' rails';
+}
+function fillPicker() {
+  var groups = {};
+  D.makers.forEach(function (m, i) {
+    var g = groups[m.group];
+    if (!g) { g = groups[m.group] = document.createElement('optgroup'); g.label = m.group; ui.sol.appendChild(g); }
+    var o = document.createElement('option'); o.value = String(i); o.textContent = makerName(m, i);
+    g.appendChild(o);
+  });
+}
+function makerText(m) {
+  var start = m.tokens[0] === 'S' ? 'start rail; the concrete behind it pushes it off' : 'start slope and let go';
+  var lev = m.levers ? (m.levers > 1 ? 'Turn the ' + m.levers + ' levers on, then place' : 'Turn the lever on, then place') : 'Place';
+  var h = '<b>' + m.rails + ' rails, ' + (m.levers ? m.levers + (m.levers > 1 ? ' levers' : ' lever') : 'no redstone') + '.</b> ' +
+          lev + ' a plain, empty minecart on the ' + start + '. It stops ' + sci(m.run.margin) + ' inside the window. ' +
+          'Checked at 15 world positions in 4 directions: ' + m.verified.floatcarts + ' of ' + m.verified.runs + ' floatcarts.';
+  if (m.schematic) h += ' Schematic: <b>' + esc(m.schematic) + '</b>.';
+  return h;
+}
+function setMaker(i) {
+  st.sol = (i + D.makers.length) % D.makers.length; st.playing = false; st.t = 0;
+  var m = M(), r = m.run;
+  ui.sol.value = String(st.sol);
+  ui.code.innerHTML = m.tokens.map(function (tk, j) {
+    return '<span class="tok' + (/p$|^S$/.test(tk) ? ' pow' : '') + '" title="' + esc(tokenTitle(tk, j, m.tokens.length)) + '">' + esc(tk) + '</span>';
+  }).join('');
+  ui.desc.innerHTML = makerText(m);
+  ui.tick.max = tmax(); ui.tickMax.textContent = tmax();
+  ui.marks.innerHTML = '';
+  ui.fin.textContent = r.yfrac.toFixed(10);
+  if (r.inside) {
+    ui.verdict.className = 'verdict good'; ui.verdict.textContent = 'Inside the window by ' + sci(r.margin) + ': a floatcart';
+    ui.mk.hidden = false; ui.mk.style.left = gpos(r.yfrac) + '%'; ui.offscale.hidden = true; ui.offscale.parentNode.classList.remove('offscale');
+  } else {
+    ui.verdict.className = 'verdict bad'; ui.verdict.textContent = 'Outside the window';
+    ui.mk.hidden = true; ui.offscale.hidden = true;
+  }
+  if (scene) scene.load(m);
+  try { history.replaceState(null, '', '#' + m.id); } catch (e) { /* file:// or sandbox */ }
+  setPlaying(false);
+  refresh(true);
+}
+ui.sol.addEventListener('change', function () { setMaker(parseInt(ui.sol.value, 10)); });
+ui.solPrev.addEventListener('click', function () { setMaker(st.sol - 1); });
+ui.solNext.addEventListener('click', function () { setMaker(st.sol + 1); });
+function setPlaying(p) {
+  if (p && st.t >= tmax()) st.t = 0;
+  st.playing = p; ui.play.textContent = p ? 'Pause' : (st.t >= tmax() ? 'Replay' : 'Play');
+  last = performance.now(); kick();
+}
+ui.play.addEventListener('click', function () { setPlaying(!st.playing); });
+function step(d) { st.playing = false; st.t = Math.max(0, Math.min(tmax(), Math.round(st.t) + d)); setPlaying(false); refresh(true); }
+ui.back.addEventListener('click', function () { step(-1); });
+ui.fwd.addEventListener('click', function () { step(1); });
+ui.speed.addEventListener('change', function () { st.speed = parseFloat(ui.speed.value); });
+ui.tick.addEventListener('input', function () { st.playing = false; st.t = parseInt(ui.tick.value, 10); setPlaying(false); refresh(true); });
+[['#tPaths', 'paths'], ['#tDots', 'dots'], ['#tLabels', 'labels'], ['#tFollow', 'follow']].forEach(function (p) {
+  var el = $(p[0]); el.addEventListener('change', function () { st[p[1]] = el.checked; refresh(true); });
+});
+document.addEventListener('keydown', function (e) {
+  var tag = (e.target && e.target.tagName) || '';
+  if (/INPUT|SELECT|TEXTAREA/.test(tag)) return;
+  if (e.key === ' ' && tag !== 'BUTTON') { e.preventDefault(); setPlaying(!st.playing); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); step(1); }
+  else if (e.key === 'ArrowLeft') { e.preventDefault(); step(-1); }
+});
+
+var shownTick = -1;
+function refresh(force) {
+  var k = curTick(), r = R();
+  if (force || k !== shownTick) {
+    shownTick = k;
+    ui.tick.value = Math.round(st.t);
+    ui.tickNum.textContent = k;
+    ui.phase.textContent = D.phases[r.ph[k]];
+    ui.phaseRules.innerHTML = '<span>Rules</span>' + (D.phaseRules[r.ph[k]] || []).map(function (id) {
+      return '<a class="rchip" href="' + RULES_PAGE + '#' + id + '"><b>' + id + '</b>' + esc(D.ruleNames[id] || '') + '</a>';
+    }).join('');
+    ui.vY.textContent = String(r.y[k]);
+    ui.vZ.textContent = String(r.z[k]);
+    ui.vV.textContent = (r.vz[k] >= 0 ? '+' : '') + r.vz[k].toFixed(5) + ' blocks/tick';
+    var ri = r.rail[k], toks = ui.code.children;
+    ui.railNow.textContent = 'Rail ' + (ri + 1) + ' of ' + M().rails + ' \u00b7 ' + M().tokens[ri];
+    for (var j = 0; j < toks.length; j++) toks[j].classList.toggle('on', j === ri);
+    if (!st.playing) ui.play.textContent = st.t >= tmax() ? 'Replay' : 'Play';
+    if (scene) scene.onTick(k);
+  }
+  dirty = true; kick();
+}
+
+/* ---------------- animation loop ---------------- */
+var dirty = true, raf = 0, last = performance.now(), scene = null;
+function kick() { if (!raf) raf = requestAnimationFrame(frame); }
+function frame(now) {
+  raf = 0;
+  var dt = Math.min(0.1, (now - last) / 1000); last = now;
+  var moving = false;
+  if (st.playing) {
+    st.t += dt * 20 * st.speed;
+    if (st.t >= tmax()) { st.t = tmax(); st.playing = false; ui.play.textContent = 'Replay'; }
+    refresh(false); moving = true;
+  }
+  if (scene) moving = scene.update(dt) || moving;
+  if (scene && (dirty || moving)) { scene.draw(); dirty = false; }
+  if (moving || st.playing) kick();
+}
+
+/* ---------------- WebGL scene ---------------- */
+function makeScene() {
+  var stage = $('#stage'), canvas = $('#gl'), labelsEl = $('#labels'), tip = $('#tip');
+  var gl = canvas.getContext('webgl', { antialias: true, alpha: false });
+  if (!gl) return null;
+
+  var VS = 'attribute vec3 aPos;attribute vec3 aNrm;uniform mat4 uPV;uniform mat4 uM;uniform mat3 uN;varying vec3 vN;' +
+           'void main(){vN=uN*aNrm;gl_Position=uPV*uM*vec4(aPos,1.0);}';
+  var FS = 'precision mediump float;uniform vec4 uColor;varying vec3 vN;' +
+           'void main(){vec3 n=normalize(vN);float l=0.62*n.x*n.x+0.82*n.z*n.z+(n.y>0.0?1.0:0.5)*n.y*n.y;' +
+           'gl_FragColor=vec4(uColor.rgb*l,uColor.a);}';
+  var LVS = 'attribute vec3 aPos;uniform mat4 uPV;uniform mat4 uM;void main(){gl_Position=uPV*uM*vec4(aPos,1.0);}';
+  var LFS = 'precision mediump float;uniform vec4 uColor;void main(){gl_FragColor=uColor;}';
+  function shader(type, src) {
+    var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  function program(vs, fs) {
+    var p = gl.createProgram();
+    gl.attachShader(p, shader(gl.VERTEX_SHADER, vs)); gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  }
+  var PM = program(VS, FS), PL = program(LVS, LFS);
+  var LM = { aPos: gl.getAttribLocation(PM, 'aPos'), aNrm: gl.getAttribLocation(PM, 'aNrm'), uPV: gl.getUniformLocation(PM, 'uPV'),
+             uM: gl.getUniformLocation(PM, 'uM'), uN: gl.getUniformLocation(PM, 'uN'), uColor: gl.getUniformLocation(PM, 'uColor') };
+  var LL = { aPos: gl.getAttribLocation(PL, 'aPos'), uPV: gl.getUniformLocation(PL, 'uPV'), uM: gl.getUniformLocation(PL, 'uM'),
+             uColor: gl.getUniformLocation(PL, 'uColor') };
+  function vbo(arr) { var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); return b; }
+
+  // unit cube: 6 faces x 4 verts (pos, normal), CCW from outside
+  var FACES = [
+    [[1, 0, 0], [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]]],
+    [[-1, 0, 0], [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]]],
+    [[0, 1, 0], [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]]],
+    [[0, -1, 0], [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]]],
+    [[0, 0, 1], [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]]],
+    [[0, 0, -1], [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]]]];
+  var cv = [], ci = [];
+  FACES.forEach(function (f, i) {
+    f[1].forEach(function (v) { cv.push(v[0], v[1], v[2], f[0][0], f[0][1], f[0][2]); });
+    var b = i * 4; ci.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  });
+  var cubeVB = vbo(new Float32Array(cv));
+  var cubeIB = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIB); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(ci), gl.STATIC_DRAW);
+  var ev = [];
+  [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]].forEach(function (e) {
+    e.forEach(function (i) { ev.push(i & 1, (i >> 1) & 1, (i >> 2) & 1); });
+  });
+  var LINES = { edges: { b: vbo(new Float32Array(ev)), n: 24 } };
+  // copper grate pattern on all six faces
+  var gv = [];
+  [0.25, 0.5, 0.75].forEach(function (u) {
+    [0, 1].forEach(function (w) {
+      gv.push(w, u, 0, w, u, 1, w, 0, u, w, 1, u);       // x faces
+      gv.push(0, w, u, 1, w, u, u, w, 0, u, w, 1);       // y faces
+      gv.push(0, u, w, 1, u, w, u, 0, w, u, 1, w);       // z faces
+    });
+  });
+  LINES.grate = { b: vbo(new Float32Array(gv)), n: gv.length / 3 };
+  function buildGrid(bd) {
+    var x0 = bd[0] - 2, x1 = bd[3] + 3, z0 = bd[2] - 2, z1 = bd[5] + 3, gy = bd[1], grid = [];
+    for (var gx = x0; gx <= x1; gx++) grid.push(gx, gy, z0, gx, gy, z1);
+    for (var gz = z0; gz <= z1; gz++) grid.push(x0, gy, gz, x1, gy, gz);
+    if (LINES.grid) gl.deleteBuffer(LINES.grid.b);
+    LINES.grid = { b: vbo(new Float32Array(grid)), n: grid.length / 3 };
+  }
+
+  /* ---------- theme ---------- */
+  var TH = {};
+  function readTheme() {
+    var cs = getComputedStyle(document.documentElement);
+    function g(n) { return cs.getPropertyValue(n).trim() || '#888'; }
+    TH.scene = hex(g('--scene')); TH.grid = hex(g('--grid'), 0.9); TH.glassEdge = hex(g('--glass-edge'), 0.85);
+    TH.built = hex(g('--built')); TH.sol = hex(g('--sol')); TH.accent = hex(g('--accent'));
+    TH.dark = (TH.scene[0] + TH.scene[1] + TH.scene[2]) < 1.2;
+    if (api) api.onTheme();
+    dirty = true; kick();
+  }
+
+  /* ---------- scene objects ---------- */
+  var C = {
+    glass: '#ffffff', concrete: '#dde2e4', honey: '#f2a126', honeyCore: '#df8a10', grate: '#4e9d85', water: '#3569de',
+    bud: '#9b5fd6', note: '#6e4a33', observer: '#747474', observerFace: '#3b3b3b', red: '#c0342b', piston: '#8e8e8e',
+    pistonFace: '#b98f58', wall: '#4b4b54', scaff: '#c7a45a', scaffTop: '#d6b56a', tie: '#6b5236', gold: '#e6bd3a',
+    goldOff: '#8a7434', iron: '#a7abb0', lit: '#ec3b2a', unlit: '#4f2320', detector: '#7d4f4a', sign: '#dd9b98',
+    lever: '#6c6c6c', stick: '#7a5431', cart: '#6c747c', axle: '#3b3f44', stand: '#a27b4c', standBase: '#9b9b9b'
+  };
+  var objs = [];
+  function add(m, col, o) {
+    o = o || {};
+    var ob = { m: m, nm: normalMat(m), col: col, edge: o.edge || null, lines: o.lines || null, trans: col[3] < 1,
+               bias: o.bias || 0, hidden: false, aabb: aabbOf(m), noPick: !!o.noPick };
+    objs.push(ob); return ob;
+  }
+  function setM(ob, m) { ob.m = m; ob.nm = normalMat(m); ob.aabb = aabbOf(m); }
+  var picks = [];   // {aabb, info()}
+  var byPos = {};
+
+  function darkEdge(col) { return shade(col, 0.55, 0.75); }
+  function addBlock(b) {
+    var x = b[0], y = b[1], z = b[2], name = b[3], pr = b[4], parts = [];
+    function P(mn, sz, col, o) {
+      o = o || {};
+      if (o.edge === undefined) o.edge = darkEdge(col);
+      var ob = add(boxM([x + mn[0], y + mn[1], z + mn[2]], sz), col, o); parts.push(ob); return ob;
+    }
+    var rec = { pos: [x, y, z], name: name, pr: pr, parts: parts };
+    switch (name) {
+      case 'white_stained_glass': P([0, 0, 0], [1, 1, 1], hex(C.glass, 0.13), { edge: 'glass' }); break;
+      case 'white_concrete': P([0, 0, 0], [1, 1, 1], hex(C.concrete)); break;
+      case 'honey_block':
+        P([0, 0, 0], [1, 1, 1], hex(C.honey, 0.55), { edge: hex('#b36d0c', 0.9) });
+        P([0.0625, 0.0625, 0.0625], [0.875, 0.875, 0.875], hex(C.honeyCore, 0.45), { edge: null, bias: 0.05 });
+        break;
+      case 'waxed_oxidized_copper_grate':
+        P([0, 0, 0], [1, 1, 1], hex(C.grate, 0.38), { edge: hex('#2f6e5c', 0.95), lines: 'grate' });
+        P([0.03, 0.03, 0.03], [0.94, 0.86, 0.94], hex(C.water, 0.33), { edge: null, bias: 0.05 });
+        break;
+      case 'medium_amethyst_bud': P([0.1875, 0.1875, 0], [0.625, 0.625, 0.25], hex(C.bud)); break;
+      case 'note_block': P([0, 0, 0], [1, 1, 1], hex(C.note)); break;
+      case 'observer':
+        P([0, 0, 0], [1, 1, 1], hex(C.observer));
+        P([0.12, 0.12, -0.012], [0.76, 0.76, 0.02], hex(C.observerFace), { edge: null });
+        P([0.4, 0.4, 0.992], [0.2, 0.2, 0.02], hex(C.red), { edge: null });
+        break;
+      case 'piston':
+        P([0.25, 0, 0], [0.75, 1, 1], hex(C.piston));
+        P([0, 0, 0], [0.25, 1, 1], hex(C.pistonFace));
+        break;
+      case 'polished_deepslate_wall':
+        P([0.25, 0, 0.25], [0.5, 1, 0.5], hex(C.wall));
+        if (pr.south === 'low') P([0.3125, 0, 0.5], [0.375, 0.875, 0.5], hex(C.wall));
+        break;
+      case 'scaffolding':
+        P([0, 0.875, 0], [1, 0.125, 1], hex(C.scaffTop));
+        [[0, 0], [0.875, 0], [0, 0.875], [0.875, 0.875]].forEach(function (c) { P([c[0], 0, c[1]], [0.125, 0.875, 0.125], hex(C.scaff)); });
+        if (pr.bottom === 'true') {
+          P([0.125, 0, 0], [0.75, 0.125, 0.125], hex(C.scaff)); P([0.125, 0, 0.875], [0.75, 0.125, 0.125], hex(C.scaff));
+          P([0, 0, 0.125], [0.125, 0.125, 0.75], hex(C.scaff)); P([0.875, 0, 0.125], [0.125, 0.125, 0.75], hex(C.scaff));
+        }
+        break;
+      case 'cherry_wall_sign': P([0.875, 0.28125, 0], [0.125, 0.5, 1], hex(C.sign)); break;
+      case 'lever':
+        P([0.8125, 0.25, 0.3125], [0.1875, 0.5, 0.375], hex(C.lever));
+        rec.handle = add(leverM(x, y, z, pr.powered === 'true'), hex(C.stick), { edge: null });
+        parts.push(rec.handle);
+        break;
+      case 'rail': case 'powered_rail': case 'detector_rail':
+        rail(rec, x, y, z, pr.shape, name, pr.powered === 'true');
+        if (pr.waterlogged === 'true') P([0, 0, 0], [1, 0.889, 1], hex(C.water, 0.2), { edge: hex(C.water, 0.35) });
+        break;
+      default: P([0, 0, 0], [1, 1, 1], hex('#ff00ff'));
+    }
+    byPos[x + ',' + y + ',' + z] = rec;
+    picks.push({ aabb: unionBox(parts), info: function () { return blockInfo(rec); }, rec: rec });
+  }
+  function leverM(x, y, z, on) {
+    return chain(T(x + 0.8125, y + 0.5, z + 0.5), RZ(on ? 0.75 : -0.75), T(-0.56, -0.04, -0.04), S(0.56, 0.08, 0.08));
+  }
+  function rail(rec, x, y, z, shape, kind, powered) {
+    var asc = shape.indexOf('ascending') === 0, L = asc ? Math.SQRT2 : 1;
+    var base = asc ? chain(T(x + 0.5, y + 0.5, z + 0.5), RX(shape === 'ascending_south' ? -Math.PI / 4 : Math.PI / 4))
+                   : T(x + 0.5, y, z + 0.5);
+    function B(mn, sz, col) { var ob = add(chain(base, boxM(mn, sz)), col, { edge: null }); rec.parts.push(ob); return ob; }
+    var n = asc ? 6 : 4;
+    for (var i = 0; i < n; i++) { var zc = -L / 2 + (i + 0.5) * L / n; B([-0.42, 0, zc - 0.065], [0.84, 0.03, 0.13], hex(C.tie)); }
+    var metal = kind === 'powered_rail' ? (powered ? C.gold : C.goldOff) : C.iron;
+    rec.rails = [B([-0.34, 0.03, -L / 2], [0.08, 0.04, L], hex(metal)), B([0.26, 0.03, -L / 2], [0.08, 0.04, L], hex(metal))];
+    if (kind === 'powered_rail') rec.strip = B([-0.04, 0.02, -L / 2 + 0.04], [0.08, 0.025, L - 0.08], hex(powered ? C.lit : C.unlit));
+    if (kind === 'detector_rail') B([-0.14, 0.02, -0.14], [0.28, 0.035, 0.28], hex(C.detector));
+  }
+  function setRailPower(rec, on) {
+    rec.rails.forEach(function (o) { o.col = hex(on ? C.gold : C.goldOff); });
+    rec.strip.col = hex(on ? C.lit : C.unlit);
+    rec.live = on;
+  }
+
+  var NOTES = {};   // per maker, from its data
+  function pretty(n) { return n.replace(/_/g, ' ').replace(/^./, function (c) { return c.toUpperCase(); }); }
+  function blockInfo(rec) {
+    var pr = rec.pr, k = rec.pos.join(','), bits = [];
+    if (pr.shape) bits.push(pr.shape.replace('_', ' '));
+    if (rec.name === 'powered_rail') bits.push((rec.live === undefined ? pr.powered === 'true' : rec.live) ? 'powered' : 'unpowered');
+    if (rec.name === 'lever') bits.push((rec.live === undefined ? pr.powered === 'true' : rec.live) ? 'on' : 'off');
+    if (pr.facing && rec.name !== 'lever' && rec.name !== 'cherry_wall_sign') bits.push('facing ' + pr.facing);
+    if (pr.waterlogged === 'true' || rec.name === 'waxed_oxidized_copper_grate') bits.push('waterlogged');
+    var h = '<b>' + esc(pretty(rec.name)) + '</b><span class="k">(' + k.replace(/,/g, ', ') + ')' + (bits.length ? ' \u00b7 ' + esc(bits.join(' \u00b7 ')) : '') + '</span>';
+    if (NOTES[k]) h += '<div class="note">' + esc(NOTES[k]) + '</div>';
+    return h;
+  }
+
+  /* carts and armor stand */
+  var HW = 0.49000000953674316, HH = 0.699999988079071;
+  var CART = [
+    [[-0.4, 0.12, -0.49], [0.8, 0.06, 0.98], 'b'], [[-0.4, 0.12, -0.49], [0.06, 0.5, 0.98], 'b'],
+    [[0.34, 0.12, -0.49], [0.06, 0.5, 0.98], 'b'], [[-0.34, 0.12, -0.49], [0.68, 0.5, 0.06], 'b'],
+    [[-0.34, 0.12, 0.43], [0.68, 0.5, 0.06], 'b'], [[-0.44, 0.03, -0.33], [0.88, 0.09, 0.1], 'a'],
+    [[-0.44, 0.03, 0.23], [0.88, 0.09, 0.1], 'a']];
+  function makeCart(col, alphaBody) {
+    var c = { parts: [], hit: null, pos: [0, 0, 0] };
+    CART.forEach(function (p) {
+      var cc = p[2] === 'a' ? hex(C.axle, alphaBody) : [col[0], col[1], col[2], alphaBody];
+      var ob = add(ident(), cc, { edge: alphaBody < 1 ? null : darkEdge(cc), noPick: true });
+      ob.local = p; c.parts.push(ob);
+    });
+    c.hit = { m: ident(), col: col.slice(0, 3).concat([0.95]) };
+    return c;
+  }
+  function placeCart(c, p) {
+    c.pos = p;
+    c.parts.forEach(function (ob) { setM(ob, chain(T(p[0], p[1], p[2]), boxM(ob.local[0], ob.local[1]))); });
+    c.hit.m = boxM([p[0] - HW, p[1], p[2] - HW], [2 * HW, HH, 2 * HW]);
+    c.aabb = [p[0] - HW, p[1], p[2] - HW, p[0] + HW, p[1] + HH, p[2] + HW];
+  }
+  var anim = null;   // the simulated cart, made in load()
+
+  /* paths and tick dots */
+  var pathVB = null, dots = [];
+  function buildPath() {
+    var r = R(), a = [];
+    for (var i = 0; i < r.y.length; i++) a.push(2.5, r.y[i] + 0.35, r.z[i]);
+    if (pathVB) gl.deleteBuffer(pathVB.b);
+    pathVB = { b: vbo(new Float32Array(a)), n: r.y.length };
+  }
+  function buildDots() {
+    dots.forEach(function (o) { var i = objs.indexOf(o); if (i >= 0) objs.splice(i, 1); });
+    dots = [];
+    var r = R(), col = TH.sol;
+    for (var i = 0; i < r.y.length; i++) {
+      var ob = add(boxM([2.5 - 0.035, r.y[i] + 0.35 - 0.035, r.z[i] - 0.035], [0.07, 0.07, 0.07]), col.slice(0, 3).concat([1]), { edge: null, noPick: true });
+      ob.dot = true; dots.push(ob);
+    }
+  }
+
+  /* labels */
+  var LABELS = [];
+  function buildLabels(list) {
+    LABELS.forEach(function (L) { L.el.parentNode.removeChild(L.el); });
+    LABELS = list.map(function (L) {
+      var el = document.createElement('div'); el.className = 'lbl' + (L.cls ? ' ' + L.cls : ''); el.textContent = L.t;
+      labelsEl.appendChild(el);
+      return { p: L.p, t: L.t, cls: L.cls, el: el };
+    });
+  }
+
+  /* ---------- camera ---------- */
+  var cam = { target: [2, 3.2, 5.3], az: -0.98, el: 0.43, r: 18, fov: 36 * Math.PI / 180 };
+  var measured = false, HOME = null, cssW = 1, cssH = 1, view = null, PV = null, eyeP = [0, 0, 0];
+  var FIT = [];   // corners of every block, plus the labels
+  function buildFit() {
+    FIT = [];
+    picks.forEach(function (pk) {
+      var b = pk.aabb;
+      for (var i = 0; i < 8; i++) FIT.push([i & 1 ? b[3] : b[0], i & 2 ? b[4] : b[1], i & 4 ? b[5] : b[2]]);
+    });
+    LABELS.forEach(function (L) { if (L.cls !== 'compass') FIT.push([L.p[0], L.p[1] + 0.45, L.p[2]]); });
+  }
+  function fitHome() {
+    // Fit the build's bounding box into the viewport: pan so it is centred, then scale the distance.
+    if (!FIT.length) return;
+    var asp = cssW / cssH, th = Math.tan(cam.fov / 2), bb = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+    FIT.forEach(function (p) { for (var q = 0; q < 3; q++) { bb[q] = Math.min(bb[q], p[q]); bb[q + 3] = Math.max(bb[q + 3], p[q]); } });
+    var h = { target: [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2], az: 1.12, el: 0.34, r: 20 };
+    var mx = asp < 0.8 ? 0.84 : 0.86, my = asp < 0.8 ? 0.8 : 0.84;
+    for (var it = 0; it < 8; it++) {
+      var ce = Math.cos(h.el);
+      var eye = [h.target[0] + h.r * ce * Math.sin(h.az), h.target[1] + h.r * Math.sin(h.el), h.target[2] + h.r * ce * Math.cos(h.az)];
+      var L = lookAt(eye, h.target, [0, 1, 0]), M = mmul(persp(cam.fov, asp, 0.1, 200), L.m);
+      var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (var i = 0; i < FIT.length; i++) {
+        var p = FIT[i];
+        var cx = M[0] * p[0] + M[4] * p[1] + M[8] * p[2] + M[12], cy = M[1] * p[0] + M[5] * p[1] + M[9] * p[2] + M[13],
+            cw = M[3] * p[0] + M[7] * p[1] + M[11] * p[2] + M[15];
+        x0 = Math.min(x0, cx / cw); x1 = Math.max(x1, cx / cw); y0 = Math.min(y0, cy / cw); y1 = Math.max(y1, cy / cw);
+      }
+      var ox = (x0 + x1) / 2, oy = (y0 + y1) / 2, k = Math.max((x1 - x0) / 2 / mx, (y1 - y0) / 2 / my);
+      for (var j = 0; j < 3; j++) h.target[j] += L.x[j] * ox * h.r * th * asp + L.y[j] * oy * h.r * th;
+      h.r = Math.max(6, Math.min(60, h.r * k));
+    }
+    HOME = h;
+  }
+  function resetView() { if (!HOME) return; cam.target = HOME.target.slice(); cam.az = HOME.az; cam.el = HOME.el; cam.r = HOME.r; dirty = true; kick(); }
+  function computeCam() {
+    var ce = Math.cos(cam.el);
+    eyeP = [cam.target[0] + cam.r * ce * Math.sin(cam.az), cam.target[1] + cam.r * Math.sin(cam.el), cam.target[2] + cam.r * ce * Math.cos(cam.az)];
+    view = lookAt(eyeP, cam.target, [0, 1, 0]);
+    PV = mmul(persp(cam.fov, cssW / cssH, 0.1, 200), view.m);
+  }
+  function orbit(dx, dy) { cam.az -= dx * 0.0085; cam.el = Math.max(-0.2, Math.min(1.5, cam.el + dy * 0.0085)); }
+  function pan(dx, dy) {
+    var k = 2 * cam.r * Math.tan(cam.fov / 2) / cssH;
+    for (var i = 0; i < 3; i++) cam.target[i] += (-dx * view.x[i] + dy * view.y[i]) * k;
+  }
+  function zoom(f) { cam.r = Math.max(2.5, Math.min(60, cam.r * f)); }
+
+  var ro = new ResizeObserver(function () {
+    var r = stage.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cssW = Math.max(1, r.width); cssH = Math.max(1, r.height);
+    canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+    measured = true;
+    var first = !HOME; fitHome(); if (first && HOME) resetView();
+    dirty = true; kick();
+  });
+  ro.observe(stage);
+
+  /* ---------- input ---------- */
+  var ptrs = new Map(), pinch = null, moved = 0, hoverRec = null;
+  function pinchInfo() {
+    var a = Array.from(ptrs.values());
+    return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, cx: (a[0].x + a[1].x) / 2, cy: (a[0].y + a[1].y) / 2 };
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, mod: e.shiftKey || e.ctrlKey || e.metaKey });
+    moved = 0; if (ptrs.size === 2) pinch = pinchInfo();
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    var p = ptrs.get(e.pointerId);
+    if (!p) { if (e.pointerType === 'mouse') hover(e); return; }
+    var dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY; moved += Math.abs(dx) + Math.abs(dy);
+    if (ptrs.size === 1) { if (p.btn === 1 || p.btn === 2 || p.mod) pan(dx, dy); else orbit(dx, dy); }
+    else if (ptrs.size === 2) { var q = pinchInfo(); if (pinch) { zoom(pinch.d / q.d); pan(q.cx - pinch.cx, q.cy - pinch.cy); } pinch = q; }
+    if (moved > 3) setTip(null);
+    dirty = true; kick();
+  });
+  function up(e) {
+    if (ptrs.has(e.pointerId) && moved < 6 && e.pointerType !== 'mouse') hover(e);
+    ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null;
+    if (!ptrs.size) canvas.classList.remove('dragging');
+  }
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('pointerleave', function (e) { if (e.pointerType === 'mouse' && !ptrs.size) setTip(null); });
+  canvas.addEventListener('wheel', function (e) { e.preventDefault(); zoom(Math.exp(e.deltaY * (e.deltaMode ? 0.05 : 0.0012))); setTip(null); dirty = true; kick(); }, { passive: false });
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('dblclick', function () { resetView(); });
+  $('#resetView').addEventListener('click', resetView);
+
+  function rayBox(o, d, b) {
+    var t0 = -Infinity, t1 = Infinity;
+    for (var i = 0; i < 3; i++) {
+      if (Math.abs(d[i]) < 1e-12) { if (o[i] < b[i] || o[i] > b[i + 3]) return null; continue; }
+      var a = (b[i] - o[i]) / d[i], c = (b[i + 3] - o[i]) / d[i];
+      if (a > c) { var s = a; a = c; c = s; }
+      t0 = Math.max(t0, a); t1 = Math.min(t1, c);
+    }
+    return t1 >= Math.max(t0, 0) ? Math.max(t0, 0) : null;
+  }
+  function hover(e) {
+    if (!view) return;
+    var r = canvas.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    var nx = mx / r.width * 2 - 1, ny = 1 - my / r.height * 2, th = Math.tan(cam.fov / 2), asp = r.width / r.height;
+    var dir = vnorm([-view.z[0] + view.x[0] * nx * th * asp + view.y[0] * ny * th,
+                     -view.z[1] + view.x[1] * nx * th * asp + view.y[1] * ny * th,
+                     -view.z[2] + view.x[2] * nx * th * asp + view.y[2] * ny * th]);
+    var best = null, bt = Infinity;
+    picks.forEach(function (p) { var t = rayBox(eyeP, dir, p.aabb); if (t !== null && t < bt) { bt = t; best = p; } });
+    if (best) {
+      if (best !== hoverRec || !tip.classList.contains('on')) { hoverRec = best; tip.innerHTML = best.info(); }
+      var tw = tip.offsetWidth, thh = tip.offsetHeight, x = mx + 14, y = my + 14;
+      if (x + tw > r.width - 6) x = mx - tw - 12;
+      if (y + thh > r.height - 6) y = my - thh - 12;
+      tip.style.transform = 'translate(' + Math.max(6, x) + 'px,' + Math.max(6, y) + 'px)';
+      tip.classList.add('on');
+    } else setTip(null);
+    dirty = true; kick();
+  }
+  function setTip(v) { if (!v) { tip.classList.remove('on'); if (hoverRec) { hoverRec = null; dirty = true; kick(); } } }
+
+  /* ---------- tick / run hooks ---------- */
+  var cartP = null, followT = null;
+  function cartAt(t) {
+    var r = R(), n = r.y.length - 1;
+    if (t <= 0) return [2.5, r.y[0], r.z[0]];
+    if (t >= n) return [2.5, r.y[n], r.z[n]];
+    var k = Math.ceil(t - 1e-9), f = t - (k - 1), a = k - 1;
+    if (Math.abs(r.y[k] - r.y[a]) > 0.6 && Math.abs(r.z[k] - r.z[a]) < 0.1) f = f < 0.5 ? 0 : 1;   // honey rail-snap: jump
+    return [2.5, r.y[a] + (r.y[k] - r.y[a]) * f, r.z[a] + (r.z[k] - r.z[a]) * f];
+  }
+  var api = {
+    onTheme: function () {
+      var col = TH.sol;
+      if (anim) {
+        anim.parts.forEach(function (ob) { if (ob.local[2] === 'b') { ob.col = col.slice(0, 3).concat([1]); ob.edge = darkEdge(ob.col); } });
+        anim.hit.col = col.slice(0, 3).concat([1]);
+      }
+      if (dots.length) buildDots();
+    },
+    load: function (m) {
+      // a new maker: rebuild every block, label and path, then frame it
+      objs.length = 0; picks.length = 0; byPos = {}; dots = []; NOTES = m.notes; hoverRec = null; setTip(null);
+      m.blocks.forEach(addBlock);
+      anim = makeCart(TH.sol, 1); cartP = null;
+      buildLabels(m.labels); buildPath(); buildGrid(m.bounds); buildFit();
+      api.onTheme(); buildDots();
+      if (measured) { fitHome(); resetView(); } else HOME = null;   // first fit waits for the real size
+      dirty = true; kick();
+    },
+    onTick: function (k) {
+      if (hoverRec && tip.classList.contains('on')) tip.innerHTML = hoverRec.info();
+    },
+    update: function (dt) {
+      var p = cartAt(st.t);
+      var ch = !cartP || p[0] !== cartP[0] || p[1] !== cartP[1] || p[2] !== cartP[2];
+      if (!anim) return false;
+      if (ch) { placeCart(anim, p); cartP = p; }
+      if (st.follow) {
+        var goal = [p[0], p[1] + 0.35, p[2]], k = Math.min(1, dt * 5), mv = false;
+        for (var i = 0; i < 3; i++) { var d = goal[i] - cam.target[i]; if (Math.abs(d) > 1e-4) { cam.target[i] += d * k; mv = true; } }
+        return ch || mv;
+      }
+      return ch;
+    },
+    draw: draw
+  };
+  readTheme();
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', readTheme); else if (mq.addListener) mq.addListener(readTheme);
+  }
+  new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'class', 'style'] });
+
+  /* ---------- drawing ---------- */
+  function useMesh() {
+    gl.useProgram(PM);
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVB);
+    gl.enableVertexAttribArray(LM.aPos); gl.vertexAttribPointer(LM.aPos, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(LM.aNrm); gl.vertexAttribPointer(LM.aNrm, 3, gl.FLOAT, false, 24, 12);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIB);
+    gl.uniformMatrix4fv(LM.uPV, false, PV);
+  }
+  function mesh(o) {
+    gl.uniformMatrix4fv(LM.uM, false, o.m); gl.uniformMatrix3fv(LM.uN, false, o.nm); gl.uniform4fv(LM.uColor, o.col);
+    gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+  }
+  var curLB = null;
+  function useLines() { gl.useProgram(PL); gl.disableVertexAttribArray(LM.aNrm); gl.uniformMatrix4fv(LL.uPV, false, PV); curLB = null; }
+  function lines(L, m, col, mode) {
+    if (curLB !== L.b) { gl.bindBuffer(gl.ARRAY_BUFFER, L.b); gl.enableVertexAttribArray(LL.aPos); gl.vertexAttribPointer(LL.aPos, 3, gl.FLOAT, false, 12, 0); curLB = L.b; }
+    gl.uniformMatrix4fv(LL.uM, false, m); gl.uniform4fv(LL.uColor, col);
+    gl.drawArrays(mode || gl.LINES, 0, L.n);
+  }
+  function edgeCol(o) { return o.edge === 'glass' ? TH.glassEdge : o.edge; }
+  var ID = ident();
+  function draw() {
+    computeCam();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(TH.scene[0], TH.scene[1], TH.scene[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    var runCol = TH.sol;
+    var opaque = [], trans = [];
+    objs.forEach(function (o) {
+      if (o.hidden || (o.dot && !st.dots)) return;
+      (o.trans ? trans : opaque).push(o);
+    });
+    // opaque meshes
+    useMesh(); opaque.forEach(mesh);
+    // grid, opaque edges, paths, hitboxes
+    useLines();
+    lines(LINES.grid, ID, TH.grid);
+    opaque.forEach(function (o) { if (o.edge) lines(LINES.edges, o.m, edgeCol(o)); });
+    if (st.paths && pathVB) lines(pathVB, ID, runCol.slice(0, 3).concat([1]), gl.LINE_STRIP);
+    if (anim) lines(LINES.edges, anim.hit.m, anim.hit.col);
+    // transparent meshes, back to front
+    trans.forEach(function (o) {
+      var c = [(o.aabb[0] + o.aabb[3]) / 2, (o.aabb[1] + o.aabb[4]) / 2, (o.aabb[2] + o.aabb[5]) / 2];
+      o.dist = Math.hypot(c[0] - eyeP[0], c[1] - eyeP[1], c[2] - eyeP[2]) + o.bias;
+    });
+    trans.sort(function (a, b) { return b.dist - a.dist; });
+    gl.depthMask(false);
+    useMesh(); trans.forEach(mesh);
+    useLines();
+    trans.forEach(function (o) {
+      if (o.edge) lines(LINES.edges, o.m, edgeCol(o));
+      if (o.lines) lines(LINES[o.lines], o.m, edgeCol(o));
+    });
+    // x-ray: selected path and the moving cart show through blocks
+    gl.disable(gl.DEPTH_TEST);
+    if (st.paths && pathVB) lines(pathVB, ID, runCol.slice(0, 3).concat([0.28]), gl.LINE_STRIP);
+    if (anim) lines(LINES.edges, anim.hit.m, runCol.slice(0, 3).concat([0.4]));
+    if (hoverRec) {
+      var b = hoverRec.aabb, e = 0.012;
+      lines(LINES.edges, boxM([b[0] - e, b[1] - e, b[2] - e], [b[3] - b[0] + 2 * e, b[4] - b[1] + 2 * e, b[5] - b[2] + 2 * e]), TH.accent.slice(0, 3).concat([0.95]));
+    }
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
+    placeLabels();
+  }
+  function placeLabels() {
+    LABELS.forEach(function (L) {
+      if (!st.labels) { L.el.classList.add('hidden'); return; }
+      var p = L.p, m = PV;
+      var cx = m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], cy = m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+          cw = m[3] * p[0] + m[7] * p[1] + m[11] * p[2] + m[15];
+      if (cw <= 0.1) { L.el.classList.add('hidden'); return; }
+      var sx = (cx / cw + 1) / 2 * cssW, sy = (1 - cy / cw) / 2 * cssH;
+      if (sx < -80 || sx > cssW + 80 || sy < -40 || sy > cssH + 60) { L.el.classList.add('hidden'); return; }
+      L.el.classList.remove('hidden');
+      if (!L.w) L.w = L.el.offsetWidth;
+      if (L.cls !== 'compass' && L.w) sx = Math.max(L.w / 2 + 6, Math.min(cssW - L.w / 2 - 6, sx));
+      L.el.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px) translate(-50%,' + (L.cls === 'compass' ? '-50%' : /below/.test(L.cls || '') ? '8px' : '-100%') + ')';
+    });
+  }
+  return api;
+}
+
+try { scene = makeScene(); } catch (err) { scene = null; if (window.console) console.error(err); }
+if (!scene) $('#noGL').hidden = false;
+fillPicker();
+var fromHash = -1;
+D.makers.forEach(function (m, i) { if (location.hash === '#' + m.id) fromHash = i; });
+setMaker(fromHash >= 0 ? fromHash : 0);
+window.addEventListener('hashchange', function () {
+  D.makers.forEach(function (m, i) { if (location.hash === '#' + m.id && i !== st.sol) setMaker(i); });
+});
+kick();
+})();
+</script>
+</body>
+</html>
