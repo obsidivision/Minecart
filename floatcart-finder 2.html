@@ -1,0 +1,2615 @@
+<!doctype html>
+<!--
+  Minecart alignment finder: a standalone page. No external requests, fonts or libraries.
+  Aims for the parked cart's y, or its x / z after the parking rail is broken (the cart then
+  falls straight down, see dropY), at one value or anywhere in a range.
+
+  For whoever maintains it:
+  - Everything runs in the browser. The physics engine (makeEngine) is a line-by-line port
+    of the Python simulator (mcredstone/physics.py) for straight rail tracks; it was checked
+    against it bit for bit (7,980 full runs, every search outcome at depths 3 to 5, and the
+    full searches that found the 13 floatcart makers). The search runs in Web Workers made
+    from makeEngine's own source, so the page stays one file.
+  - makeLitematicWriter writes .litematic files in the same format as schematic_writer.py.
+  - Colour tokens on :root; dark mode through prefers-color-scheme and [data-theme] on
+    <html>. The theme choice is shared with the other floatcart pages (localStorage key
+    "floatcart-rules-theme").
+  - Links assume floatcart-makers-3d.html, floatcart-3d.html and
+    floatcart-simulator-rules.html are in the same folder. No Jekyll front matter, so
+    GitHub Pages serves the file as-is.
+  - Built by build_finder.py from finder_head.html, finder_body.html, finder_app.js,
+    finder_engine.js and finder_litematic.js (mcredstone/finder/).
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minecart alignment finder · Minecraft Java 26.2</title>
+<meta name="description" content="Type the y position you want a minecart to stop at. This page simulates millions of straight rail tracks tick by tick, in your browser, and lists the ones that park a cart closest to it, floatcarts included. Minecraft Java Edition 26.2.">
+<meta name="color-scheme" content="light dark">
+<script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<style>
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --soft: #f0efe9; --line: #e2e0d9;
+  --fg: #1b1d20; --fg2: #33373d; --muted: #5d646d; --accent: #2a64c9;
+  --good: #12805e; --on: #a86a00; --halt: #c0392b; --rail: #6f6552; --glass: #8fb3cf; --stone: #9aa0a6;
+  --scene: #e9ecef; --grid: #c3c9d0;
+  --shadow: 0 1px 2px rgba(20, 22, 26, .04), 0 2px 10px rgba(20, 22, 26, .04);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1113; --surface: #171a1e; --soft: #1e2227; --line: #2a2f35;
+    --fg: #e6e8eb; --fg2: #cfd3d8; --muted: #9ba3ad; --accent: #79a8ff;
+    --good: #3fcf9b; --on: #f2b441; --halt: #ff7b6e; --rail: #c9bda3; --glass: #5f86a6; --stone: #7d848c;
+    --scene: #14171a; --grid: #2f353c;
+    --shadow: none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1113; --surface: #171a1e; --soft: #1e2227; --line: #2a2f35;
+  --fg: #e6e8eb; --fg2: #cfd3d8; --muted: #9ba3ad; --accent: #79a8ff;
+  --good: #3fcf9b; --on: #f2b441; --halt: #ff7b6e; --rail: #c9bda3; --glass: #5f86a6; --stone: #7d848c;
+  --scene: #14171a; --grid: #2f353c;
+  --shadow: none;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+.mono { font-variant-numeric: tabular-nums; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+[hidden] { display: none !important; }
+
+/* header */
+.site { padding: 36px 0 18px; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.brand { display: flex; gap: 14px; align-items: center; }
+.logo { width: 46px; height: 35px; color: var(--accent); flex: none; }
+h1 { font-size: clamp(26px, 4.2vw, 36px); line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
+.sub { color: var(--muted); margin: 10px 0 0; font-size: 17px; max-width: 760px; }
+.links { margin: 10px 0 0; font-size: 14.5px; color: var(--muted); }
+.btn {
+  appearance: none; font: inherit; font-size: 13.5px; line-height: 1.2; cursor: pointer; white-space: nowrap;
+  padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+.btn:hover:not(:disabled) { border-color: var(--muted); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary { background: var(--fg); border-color: var(--fg); color: var(--bg); font-weight: 650; padding: 9px 18px; font-size: 15px; }
+.btn.primary:hover:not(:disabled) { opacity: .9; border-color: var(--fg); }
+.btn.sm { font-size: 12.5px; padding: 5px 10px; }
+.theme-btn { display: inline-flex; align-items: center; gap: 7px; }
+.theme-btn svg { width: 16px; height: 16px; flex: none; }
+.theme-btn .i-sun, .theme-btn[aria-pressed="true"] .i-moon { display: none; }
+.theme-btn[aria-pressed="true"] .i-sun { display: block; }
+
+/* cards and form */
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin: 0 0 18px; box-shadow: var(--shadow); }
+.card h2, .results h2, .how h2 { font-size: 20px; line-height: 1.25; margin: 0 0 4px; letter-spacing: -0.01em; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 22px; }
+.field { min-width: 0; border: 0; padding: 0; margin: 0; }
+.field > label, .field legend { display: block; font-weight: 600; font-size: 14.5px; margin: 0 0 6px; padding: 0; }
+.hint { margin: 6px 0 0; color: var(--muted); font-size: 13.5px; }
+.hint.err { color: var(--halt); }
+.inrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+input[type="text"], select {
+  font: inherit; font-size: 15px; padding: 8px 11px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--surface); color: var(--fg); min-width: 0;
+}
+input[type="text"].mono { font-size: 15px; }
+input.bad { border-color: var(--halt); }
+#target, #lo, #hi { width: 12.5em; }
+#tol { width: 8.5em; }
+.tgt { margin-top: 10px; }
+.tgt .word { color: var(--muted); font-size: 14px; }
+.presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.chip {
+  appearance: none; font: inherit; font-size: 13px; line-height: 1.2; cursor: pointer; white-space: nowrap;
+  padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--soft); color: var(--fg);
+}
+.chip:hover { border-color: var(--muted); }
+.seg { display: flex; flex-wrap: wrap; gap: 4px; background: var(--soft); border: 1px solid var(--line); border-radius: 11px; padding: 3px; }
+.seg label { flex: 1 1 auto; position: relative; cursor: pointer; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg span {
+  display: block; text-align: center; padding: 7px 10px; border-radius: 8px; font-size: 14px; font-weight: 600;
+  color: var(--muted); white-space: nowrap;
+}
+.seg span small { display: block; font-weight: 500; font-size: 11.5px; color: var(--muted); }
+.seg input:checked + span { background: var(--surface); color: var(--fg); box-shadow: 0 1px 2px rgba(0, 0, 0, .08), 0 0 0 1px var(--line); }
+.seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
+.pos { grid-column: 1 / -1; border-top: 1px solid var(--line); padding-top: 12px; }
+.pos summary { cursor: pointer; font-weight: 600; font-size: 14.5px; width: fit-content; }
+.pos summary span { font-weight: 500; color: var(--muted); }
+.xyz { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; margin-top: 10px; }
+.xyz label { display: flex; flex-direction: column; font-size: 12.5px; color: var(--muted); gap: 3px; }
+.xyz input { width: 7.2em; }
+.actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 18px; }
+.status { color: var(--muted); font-size: 14px; }
+.keep { color: var(--muted); font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.keep select { font-size: 14px; padding: 5px 8px; }
+.progress { margin-top: 14px; }
+.bar { height: 8px; border-radius: 4px; background: var(--soft); border: 1px solid var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .25s; }
+.progress p { margin: 6px 0 0; font-size: 13.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* results */
+.results { margin: 26px 0 18px; }
+.res-head p { margin: 0 0 12px; color: var(--muted); font-size: 14.5px; }
+.table-wrap { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); overflow: hidden; }
+table { border-collapse: collapse; width: 100%; }
+.res > thead > tr > th { text-align: left; font-size: 12.5px; font-weight: 600; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--line); background: var(--soft); white-space: nowrap; }
+.res > tbody > tr > td { padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; font-size: 14.5px; }
+.res > tbody > tr.r { cursor: pointer; }
+.res > tbody > tr.r:hover > td { background: color-mix(in srgb, var(--soft) 60%, transparent); }
+.res > tbody > tr.r.open > td { background: var(--soft); border-bottom-color: transparent; }
+.res > tbody > tr:last-child > td { border-bottom: 0; }
+.res td.n { color: var(--muted); width: 36px; font-variant-numeric: tabular-nums; }
+.res td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.res th.num { text-align: right; }
+.res td.yf { white-space: nowrap; }
+.res td.more { text-align: right; width: 1%; white-space: nowrap; }
+.empty { color: var(--muted); padding: 22px 16px; text-align: center; font-size: 14.5px; }
+.code { display: inline-flex; flex-wrap: wrap; gap: 3px; vertical-align: middle; }
+.tok {
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 4px 5px; border-radius: 5px;
+  border: 1px solid var(--line); background: var(--soft); color: var(--fg2);
+}
+.tok.st { color: var(--fg); border-color: var(--muted); }
+.tok.p { color: var(--on); border-color: color-mix(in srgb, var(--on) 45%, var(--line)); background: color-mix(in srgb, var(--on) 10%, var(--soft)); }
+.tok.h { color: var(--halt); border-color: color-mix(in srgb, var(--halt) 40%, var(--line)); background: color-mix(in srgb, var(--halt) 8%, var(--soft)); }
+.tok.e { color: var(--surface); background: var(--halt); border-color: var(--halt); }
+.badge { display: inline-block; font-size: 11.5px; font-weight: 650; padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: 1px; border: 1px solid var(--line); color: var(--muted); }
+.badge.fc { color: var(--surface); background: var(--good); border-color: var(--good); }
+.badge.in { color: var(--good); border-color: color-mix(in srgb, var(--good) 50%, var(--line)); }
+.legend { color: var(--muted); font-size: 13.5px; margin: 10px 2px 0; }
+.legend .tok { font-size: 11px; padding: 2px 4px; }
+
+/* detail view */
+.res > tbody > tr.detail > td { padding: 4px 14px 18px; background: var(--soft); }
+.dv { display: grid; gap: 14px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 14px; color: var(--fg2); margin: 0; }
+.facts b { color: var(--fg); font-weight: 600; }
+.facts .mono { font-size: 13.5px; }
+.facts.drop { display: block; font-size: 13.5px; }
+.res td.off.miss { color: var(--halt); }
+/* 3D view of one track (finder_3d.js): one canvas, moved into whichever result is open */
+.glbox { background: var(--scene); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; height: 340px; position: relative; }
+.glbox img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.glbox .glsnap { position: absolute; inset: 0; display: grid; place-items: end center; }
+.glbox .glsnap span { font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 10px; margin-bottom: 8px; }
+.gl3d { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--scene); }
+.gl3d canvas { flex: 1; display: block; touch-action: none; cursor: grab; min-height: 0; }
+.gl3d canvas.dragging { cursor: grabbing; }
+.gl-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; height: 34px;
+  box-sizing: border-box; border-top: 1px solid var(--line); background: var(--surface); }
+.gl-hint { font-size: 12px; color: var(--muted); }
+.gl-none { padding: 14px; font-size: 14px; color: var(--muted); }
+.dv-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.dv-actions .note { font-size: 13px; color: var(--muted); }
+.verify { font-size: 14px; color: var(--fg2); margin: 0; }
+.verify.good b { color: var(--good); }
+.verify.bad b { color: var(--halt); }
+.build { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; }
+.build table { font-size: 13.5px; }
+.build th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.build td { padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.build tr:last-child td { border-bottom: 0; }
+.build td.mono { white-space: nowrap; }
+.build td.k { color: var(--muted); font-variant-numeric: tabular-nums; }
+.bnote { margin: 0; font-size: 13.5px; color: var(--fg2); }
+
+/* check a layout */
+#code { flex: 1 1 22em; }
+#checkOut { margin-top: 14px; }
+#checkOut .dv { background: var(--soft); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.check-sum { margin: 0; font-size: 15px; }
+
+/* how it works, footer */
+.how { margin: 30px 0 10px; }
+.how p, .how li { color: var(--fg2); font-size: 15px; }
+.how ul { padding-left: 20px; }
+.how li { margin: 4px 0; }
+footer { color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--line); margin-top: 30px; padding: 18px 0 40px; }
+footer p { margin: 0 0 6px; }
+
+@media (max-width: 760px) {
+  .site { padding-top: 24px; }
+  .sub { font-size: 16px; }
+  .theme-btn { padding: 8px; }
+  .theme-btn .label { display: none; }
+  .logo { width: 38px; height: 29px; }
+  .grid { grid-template-columns: 1fr; }
+  .card { padding: 14px; }
+  .res > thead { display: none; }
+  .res, .res > tbody { display: block; }
+  .res > tbody > tr.r { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 12px; border-bottom: 1px solid var(--line); }
+  .res > tbody > tr.r > td { display: block; padding: 0; border: 0; background: none !important; width: auto; }
+  .res > tbody > tr.r > td.lay { flex: 1 1 0; min-width: 0; }
+  .res > tbody > tr.r > td.yf { flex-basis: 100%; }
+  .res > tbody > tr.r > td.off, .res > tbody > tr.r > td.rails, .res > tbody > tr.r > td.levers { text-align: left; font-size: 13.5px; color: var(--muted); }
+  .res > tbody > tr.r > td.off::before { content: attr(data-lab); font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .res > tbody > tr.r > td.rails::before { content: "rails "; }
+  .res > tbody > tr.r > td.levers::before { content: "levers "; }
+  .res > tbody > tr.r > td.more { margin-left: auto; }
+  .res > tbody > tr.r.open { background: var(--soft); border-bottom: 0; }
+  .res > tbody > tr.detail { display: block; }
+  .res > tbody > tr.detail > td { display: block; padding: 0 12px 16px; border-bottom: 1px solid var(--line); }
+  .res > tbody > tr > td.empty { display: block; }
+}
+@media print {
+  .card.controls, #theme, #check { display: none; }
+  body { background: #fff; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <div class="top">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 32 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="26" height="12" rx="1.5" fill="currentColor" opacity=".18"/><path d="M3 4h26v12H3z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 8h18" stroke="currentColor" stroke-width="2" opacity=".5"/><circle cx="9" cy="19" r="3" fill="currentColor"/><circle cx="23" cy="19" r="3" fill="currentColor"/><path d="M0 23h32" stroke="currentColor" stroke-width="2" opacity=".35"/></svg>
+        <h1>Minecart alignment finder</h1>
+      </div>
+      <button type="button" class="btn theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode">
+        <svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg>
+        <svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.6" fill="currentColor"/><path d="M10 1.8v2.4M10 15.8v2.4M1.8 10h2.4M15.8 10h2.4M4.2 4.2l1.7 1.7M14.1 14.1l1.7 1.7M4.2 15.8l1.7-1.7M14.1 5.9l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span class="label">Dark mode</span>
+      </button>
+    </div>
+    <p class="sub">Type where you want a minecart to end up: its height on the rail, or its x or z after you break the rail under it. The finder simulates every straight rail track up to the size you pick, tick by tick, and lists the ones that come closest: floatcarts, or any other alignment. Java Edition 26.2, classic minecart physics.</p>
+    <p class="links"><a href="floatcart-makers-3d.html">13 floatcart makers in 3D</a> &#183; <a href="floatcart-3d.html">the challenge build in 3D</a> &#183; <a href="floatcart-simulator-rules.html">the simulator's rules</a></p>
+  </header>
+
+  <section class="card controls" aria-label="Search settings">
+    <div class="grid">
+      <fieldset class="field">
+        <legend>Aim for</legend>
+        <div class="seg">
+          <label><input type="radio" name="axis" value="y" checked><span>y value<small>cart on the rail</small></span></label>
+          <label><input type="radio" name="axis" value="x"><span>x value<small>rail broken after</small></span></label>
+          <label><input type="radio" name="axis" value="z"><span>z value<small>rail broken after</small></span></label>
+        </div>
+        <p class="hint" id="axisHint"></p>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Target</legend>
+        <div class="seg">
+          <label><input type="radio" name="mode" value="value" checked><span>One value</span></label>
+          <label><input type="radio" name="mode" value="range"><span>A range</span></label>
+        </div>
+        <div class="inrow tgt" id="valueBox">
+          <label class="visually-hidden" for="target">Target fraction</label>
+          <input type="text" id="target" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.3000050119" aria-describedby="targetHint">
+          <span class="word">&#177;</span>
+          <label class="visually-hidden" for="tol">Counts as a match within plus or minus</label>
+          <input type="text" id="tol" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.000005" aria-describedby="targetHint">
+        </div>
+        <div class="inrow tgt" id="rangeBox" hidden>
+          <label class="word" for="lo">from</label>
+          <input type="text" id="lo" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.3000000120" aria-describedby="targetHint">
+          <label class="word" for="hi">to</label>
+          <input type="text" id="hi" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.3000100119" aria-describedby="targetHint">
+        </div>
+        <div class="presets"><button type="button" class="chip" id="presetFloat">Floatcart window</button></div>
+        <p class="hint" id="targetHint"></p>
+      </fieldset>
+      <fieldset class="field" id="cartBox">
+        <legend>Cart</legend>
+        <div class="seg">
+          <label><input type="radio" name="cart" value="empty" checked><span>Empty<small>placed by hand</small></span></label>
+          <label><input type="radio" name="cart" value="boat"><span>With a boat<small>loaded by the run in front</small></span></label>
+        </div>
+        <div class="inrow tgt" id="stopBox" hidden>
+          <label for="stopper">Stopper</label>
+          <select id="stopper">
+            <option value="bud">Amethyst bud (medium, large or cluster)</option>
+            <option value="small_bud">Small amethyst bud</option>
+            <option value="block">Plain block</option>
+          </select>
+        </div>
+        <p class="hint" id="cartHint"></p>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Rails</legend>
+        <div class="seg">
+          <label><input type="radio" name="rails" value="any" checked><span>Any rails<small>levers where needed</small></span></label>
+          <label><input type="radio" name="rails" value="plain"><span>No redstone<small>plain and unpowered rails</small></span></label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Search size</legend>
+        <div class="seg" id="sizes">
+          <label><input type="radio" name="size" value="0"><span>Quick</span></label>
+          <label><input type="radio" name="size" value="1" checked><span>Normal</span></label>
+          <label><input type="radio" name="size" value="2"><span>Deep</span></label>
+          <label><input type="radio" name="size" value="3"><span>Very deep</span></label>
+          <label><input type="radio" name="size" value="4"><span>Extreme</span></label>
+        </div>
+        <p class="hint" id="sizeHint"></p>
+      </fieldset>
+      <details class="pos" id="posBox">
+        <summary>Build position <span id="posSum">0 64 0, track running south</span></summary>
+        <div class="xyz">
+          <label>X<input type="text" id="px" class="mono" inputmode="numeric" value="0" autocomplete="off"></label>
+          <label>Y<input type="text" id="py" class="mono" inputmode="numeric" value="64" autocomplete="off"></label>
+          <label>Z<input type="text" id="pz" class="mono" inputmode="numeric" value="0" autocomplete="off"></label>
+          <label>Track runs<select id="facing"><option value="south">south (+Z)</option><option value="north">north (&#8722;Z)</option><option value="east">east (+X)</option><option value="west">west (&#8722;X)</option></select></label>
+        </div>
+        <p class="hint" id="posHint">The block of the rail you place the cart on. The last digits of the cart's position depend on where the track is, so results are exact for this spot.</p>
+      </details>
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="go">Find tracks</button>
+      <button type="button" class="btn" id="stop" disabled>Stop</button>
+      <label class="keep">List <select id="keep"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></label>
+      <label class="keep"><span class="visually-hidden">Order</span><select id="sort"><option value="close">closest first</option><option value="short">shortest matches first</option></select></label>
+      <span class="status" id="status" aria-live="polite"></span>
+    </div>
+    <div class="progress" id="prog" hidden>
+      <div class="bar" role="progressbar" aria-label="Search progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="barBox"><i id="bar"></i></div>
+      <p id="progText"></p>
+    </div>
+  </section>
+
+  <section class="results" id="results" hidden aria-labelledby="h-res">
+    <div class="res-head">
+      <h2 id="h-res">Closest tracks</h2>
+      <p id="summary" aria-live="polite"></p>
+    </div>
+    <div class="table-wrap">
+      <table class="res">
+        <thead><tr><th>#</th><th>Layout</th><th id="thVal">y fraction</th><th class="num" id="thOff">Off by</th><th class="num">Rails</th><th class="num">Levers</th><th><span class="visually-hidden">Details</span></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p class="legend">Each token is one rail, first to last: <span class="tok st">Dr</span> start on a slope going down (<span class="tok st p">Dp</span> if it is a powered rail, <span class="tok st p">S</span> a flat powered rail with a conductor behind it), then <b>F</b> flat, <b>U</b> slope up, <b>D</b> slope down, each <b>r</b> plain rail, <span class="tok p">p</span> powered rail ON or <span class="tok h">h</span> powered rail OFF, and <span class="tok e">E</span> the parking slope (a powered rail, OFF, sloping up). Click a row for the build list, a 3D view, and a .litematic with or without an automatic test.</p>
+  </section>
+
+  <section class="card" id="check" aria-labelledby="h-check">
+    <h2 id="h-check">Check a layout</h2>
+    <p class="hint" style="margin:0 0 10px">Type or paste any layout code, for example one of the 13 floatcart makers. It runs with the target and build position above.</p>
+    <div class="inrow">
+      <label class="visually-hidden" for="code">Layout code</label>
+      <input type="text" id="code" class="mono" autocomplete="off" spellcheck="false" placeholder="Dr Dr Fr Fr Fp Up Fr Fr Ur E">
+      <button type="button" class="btn" id="checkBtn">Simulate</button>
+    </div>
+    <div id="checkOut" aria-live="polite"></div>
+  </section>
+
+  <section class="how" aria-labelledby="h-how">
+    <h2 id="h-how">How it works</h2>
+    <p>A track is one straight lane of rails. You place a minecart on the first rail, it rolls along, and it stops on the last rail: a powered rail that is off, sloping up. Where it stops on that slope sets its height: the y fraction is 1/16 plus how far up the slope it got. The finder tries every track it is allowed to build, in order, and keeps the ones whose cart ends closest to your target, or anywhere inside your range.</p>
+    <ul>
+      <li><b>Exact physics.</b> Every tick uses a JavaScript port of the Python simulator that reproduces FarCoolHat's stored cart bit for bit, and whose 13 floatcart makers were confirmed in game, every coordinate to the last digit. The port was checked against it on 7,980 full runs, all identical to the last bit.</li>
+      <li><b>x or z values.</b> Once the cart has parked it has no speed at all, so if you then break the parking rail it falls straight down: its x and z stay exactly what they were, and it lands on the block below. That position along the track is what an x or z target aims for (x for a track running east or west, z for north or south). Checked with the simulator on 2,100 drops. A drop of less than about 0.0003 blocks never happens (rule C4), so a cart parked just above a block top stays hovering there.</li>
+      <li><b>Fast.</b> A partly built track is simulated once and shared by every track that continues it, so each rail added costs only the ticks the cart spends on it. The work is split across your processor's cores. Nothing leaves your browser.</li>
+      <li><b>Buildable.</b> Glass under every rail, and at the foot of each slope's high side. No peak: a slope up is never followed straight away by a slope down. Powered rails that are on and off never touch, since touching powered rails share power; each run of powered rails that are on gets a lever on a concrete block beside its first rail.</li>
+      <li><b>Downloads.</b> <i>Download .litematic</i> saves the track alone. <i>Download with tester</i> adds command blocks that test it by themselves: paste it in a creative world with commands allowed, and a few seconds later they put a minecart on the start rail; once it has parked (and, for an x or z target, once they have removed the parking rail) they say in chat whether it passed, with its exact position, and put a lime or red wool block above it. A button behind the start runs the test again. They are built from the same parts as the 13-maker test rig, which worked in game.</li>
+      <li><b>Boat carts.</b> A minecart item always makes an empty cart, so a cart that carries a boat has to pick one up while it rolls, and a cart that carries anything moves differently: every move is 0.75 &times; its speed and it keeps 99.7% of that speed each tick instead of 96%. Where the pickup happens is not exact, so the download puts a fixed loading run three blocks above the start rail: you place a plain minecart on its slope, it rolls down, takes the boat aboard, and stops dead against the stopper at the end &mdash; always in the same spot, whatever the roll did, because a minecart does not bounce. That last rail sits straight above the start rail, so breaking the glass under the cart drops it onto the track at rest, at the fraction the stopper sets: 0.5099999905 for a plain block, 0.6974999905 for a medium, large or cluster amethyst bud, 0.7599999905 for a small one (mirrored for a track running north or west). The boat's own spot only decides which tick it is picked up, which the stopper then erases: 45 different boat placements, over three different rails, handed the track the same cart down to the last bit. The whole chain &mdash; roll, pickup, stop, drop and run &mdash; was simulated in the full engine and matches this page's own answer bit for bit on 480 runs.</li>
+      <li><b>Where you build matters.</b> The cart's position is a floating-point number, so its last digits depend on where the track is. Results are exact at the build position you set. <i>Check at 60 positions</i> reruns a track at 15 places in the world, out to the world border, in all 4 directions (in your direction only for an x or z target).</li>
+      <li><b>Nothing else may touch the cart.</b> Unless you asked for a boat cart, every result is for a plain, empty minecart placed by hand on the start rail, with any levers already on. A minecart moving at 0.1 blocks per tick or faster picks up mobs (and other entities it can push) that come within 0.2 blocks of it, and any passenger changes its physics: it moves only 75% of its speed each tick and keeps 99.7% of it instead of 96%, so it stops somewhere else entirely. Players, iron golems and other minecarts are pushed instead, and that pushes the cart too. Keep the track clear, and don't let anything bump the cart until you are done with it. The experimental minecart changes must be off (the default).</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Created by <strong>07km</strong>, founder of the solution.</p>
+    <p>Challenge build: &#8220;vertical floatcart challenge&#8221; by FarCoolHat. Minecraft Java Edition 26.2 (data version 4903), classic minecart engine.</p>
+    <p>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+  </footer>
+</div>
+
+<script>
+/*
+  Floatcart finder engine: Minecraft Java 26.2 classic minecart physics for straight rail
+  tracks, and a brute-force search over track layouts.
+
+  The physics is a line-by-line port of physics.py's rail engine (itself a port of the
+  game's classic minecart code, OldMinecartBehavior), keeping the same order of operations
+  so every double rounds the same way. physics.py reproduced 13 carts in the real game to
+  the last digit. Only what a straight, dry track needs is here: slopes, plain rails,
+  powered rails (on and off), the standing start and its conductor block, rail lookups and
+  track height, and the straight fall when the parking rail is broken (dropY).
+
+  Checked against physics.py bit for bit: 7,980 full runs (random and parked layouts, 15
+  world placements, 4 directions), every parked outcome of the depth 3-5 searches, the
+  totals of the searches that found the 13 floatcart makers, and 2,100 rail-break drops
+  (test_engine.js, ref_cases.py, drop_check.py).
+
+  makeEngine() returns the API. The same function runs in the page and inside the Web
+  Workers (the page turns its source into a worker script), and in Node:
+      var E = require('./finder_engine.js')();
+      E.run('Dr Dr Fr Fr Fp Up Fr Fr Ur E', [0, 65, 0], 'south')   // origin: entry level
+*/
+function makeEngine() {
+  'use strict';
+
+  var HEIGHT = 0.699999988079071;          // cart height, float 0.7 (M1)
+  var HALF_W = Math.fround(Math.fround(0.98) / 2);   // half the cart's width, float (M1)
+  var EPS = 1.0e-7;                        // collision tolerance (C3)
+  var F_1E5 = Math.fround(1e-5);           // float 1e-5 (C5, X2)
+  var WIN_LO = 0.30000001192092896, WIN_HI = 0.30001001192067633;   // floatcart window (X3)
+
+  // rail shapes: 0 north_south, 1 east_west, 2 ascending_east, 3 ascending_west,
+  // 4 ascending_north, 5 ascending_south; each has two track ends (R1)
+  var SHAPE_NAMES = ['north_south', 'east_west', 'ascending_east', 'ascending_west', 'ascending_north', 'ascending_south'];
+  var EXITS = [
+    [[0, 0, -1], [0, 0, 1]],
+    [[-1, 0, 0], [1, 0, 0]],
+    [[-1, -1, 0], [1, 0, 0]],
+    [[-1, 0, 0], [1, -1, 0]],
+    [[0, 0, -1], [0, -1, 1]],
+    [[0, -1, -1], [0, 0, 1]]
+  ];
+  // travel direction -> step along the track, step to the left side, flat / up / down shapes
+  var FACINGS = {
+    south: { du: 0, dv: 1, lu: 1, lv: 0, flat: 0, up: 5, down: 4 },
+    north: { du: 0, dv: -1, lu: -1, lv: 0, flat: 0, up: 4, down: 5 },
+    east: { du: 1, dv: 0, lu: 0, lv: -1, flat: 1, up: 2, down: 3 },
+    west: { du: -1, dv: 0, lu: 0, lv: 1, flat: 1, up: 3, down: 2 }
+  };
+  var KIND_PLAIN = 0, KIND_ON = 1, KIND_OFF = 2;
+  var KINDS = { r: KIND_PLAIN, p: KIND_ON, h: KIND_OFF };
+
+  /* ---------- a track the physics can run on ---------- */
+  // X, Y, Z: position of the "entry level" origin (rail 0 of a flat start sits here; a
+  // slope start's rail is one block lower). level[k] is rail k's height offset.
+  function newTrack(origin, facing, capacity) {
+    var f = FACINGS[facing];
+    return { X: origin[0], Y: origin[1], Z: origin[2], f: f, n: 0, conductorBehind: false,
+             loaded: false, startAt: null,
+             shape: new Int8Array(capacity), kind: new Int8Array(capacity), level: new Int32Array(capacity) };
+  }
+  function railIndex(T, x, y, z) {
+    var f = T.f, k;
+    if (f.du !== 0) { if (z !== T.Z) return -1; k = (x - T.X) * f.du; }
+    else { if (x !== T.X) return -1; k = (z - T.Z) * f.dv; }
+    if (k >= 0 && k < T.n && y === T.Y + T.level[k]) return k;
+    return -1;
+  }
+  function isConductor(T, x, y, z) {
+    // only the concrete behind a standing start is a conductor next to the track (P4)
+    if (!T.conductorBehind) return false;
+    var f = T.f;
+    return x === T.X - f.du && z === T.Z - f.dv && y === T.Y;
+  }
+
+  // Where a cart at (x, y, z) sits on its rail: its track height, or NaN off the rails (R2)
+  function getPosY(T, x, y, z) {
+    var xt = Math.floor(x), yt = Math.floor(y), zt = Math.floor(z);
+    var k = railIndex(T, xt, yt - 1, zt);
+    if (k >= 0) yt = yt - 1;
+    else { k = railIndex(T, xt, yt, zt); if (k < 0) return NaN; }
+    var ex = EXITS[T.shape[k]], e0 = ex[0], e1 = ex[1];
+    var x0 = xt + 0.5 + e0[0] * 0.5, y0 = yt + 0.0625 + e0[1] * 0.5, z0 = zt + 0.5 + e0[2] * 0.5;
+    var x1 = xt + 0.5 + e1[0] * 0.5, y1 = yt + 0.0625 + e1[1] * 0.5, z1 = zt + 0.5 + e1[2] * 0.5;
+    var xD = x1 - x0, yD = (y1 - y0) * 2.0, zD = z1 - z0, progress;
+    if (xD === 0.0) progress = z - zt;
+    else if (zD === 0.0) progress = x - xt;
+    else progress = ((x - x0) * xD + (z - z0) * zD) * 2.0;
+    var yy = y0 + yD * progress;
+    if (yD < 0.0) yy += 1; else if (yD > 0.0) yy += 0.5;
+    return yy;
+  }
+
+  // Collisions (C1-C5). On these tracks every other block is a rail, sits below the cart's
+  // feet, or is beside the track outside its hitbox, so the only block a cart can run into
+  // is the conductor behind a standing start (a cart that rolls back to the start). A move
+  // is cut short against it exactly as physics.py's collide() and entity_move() do.
+  function findIndex(lo, hi, v) { return v < lo ? -1 : v < hi ? 0 : 1; }
+  function voxelCollide(s, axis, box, distance) {
+    if (Math.abs(distance) < EPS) return 0.0;
+    var b = axis === 0 ? 1 : 0, cx = axis === 2 ? 1 : 2;
+    var minA = box[axis], maxA = box[axis + 3];
+    var aMin = findIndex(s[axis], s[axis + 3], minA + EPS);
+    var aMax = findIndex(s[axis], s[axis + 3], maxA - EPS);
+    var bMin = Math.max(0, findIndex(s[b], s[b + 3], box[b] + EPS));
+    var bMax = Math.min(1, findIndex(s[b], s[b + 3], box[b + 3] - EPS) + 1);
+    var cMin = Math.max(0, findIndex(s[cx], s[cx + 3], box[cx] + EPS));
+    var cMax = Math.min(1, findIndex(s[cx], s[cx + 3], box[cx + 3] - EPS) + 1);
+    if (!(bMin < bMax && cMin < cMax)) return distance;
+    var nd;
+    if (distance > 0.0) {
+      if (aMax + 1 <= 0) { nd = s[axis] - maxA; if (nd >= -EPS) distance = Math.min(distance, nd); }
+      return distance;
+    }
+    if (aMin - 1 >= 0) { nd = s[axis + 3] - minA; if (nd <= EPS) distance = Math.max(distance, nd); }
+    return distance;
+  }
+  // The move collisions allow, or null when nothing is in the way.
+  function collide(T, c, dx, dz) {
+    if (dx * dx + dz * dz === 0.0) return null;
+    var bb = [c.x - HALF_W, c.y, c.z - HALF_W, c.x + HALF_W, c.y + HEIGHT, c.z + HALF_W];
+    var a0 = bb[0], a2 = bb[2], a3 = bb[3], a5 = bb[5];
+    if (dx < 0.0) a0 += dx; else if (dx > 0.0) a3 += dx;
+    if (dz < 0.0) a2 += dz; else if (dz > 0.0) a5 += dz;
+    var sx = T.X - T.f.du, sz = T.Z - T.f.dv, sy = T.Y;
+    var s = [sx, sy, sz, sx + 1.0, sy + 1.0, sz + 1.0];
+    if (!(a0 < s[3] && a3 > s[0] && bb[1] < s[4] && bb[4] > s[1] && a2 < s[5] && a5 > s[2])) return null;
+    var res = [0.0, 0.0, 0.0], want = [dx, 0.0, dz];
+    var order = Math.abs(dx) < Math.abs(dz) ? [1, 2, 0] : [1, 0, 2];
+    for (var i = 0; i < 3; i++) {
+      var axis = order[i], m = want[axis];
+      if (m !== 0.0) {
+        var box = [bb[0] + res[0], bb[1] + res[1], bb[2] + res[2], bb[3] + res[0], bb[4] + res[1], bb[5] + res[2]];
+        res[axis] = Math.abs(m) < EPS ? 0.0 : voxelCollide(s, axis, box, m);
+      }
+    }
+    return res;
+  }
+
+  // One game tick for a cart on the rails (M4). c = {x, y, z, vx, vz}; false = off the rails.
+  // (Vertical speed never affects a cart on rails, so it is left out; the track is dry.)
+  function tick(T, c) {
+    var px = Math.floor(c.x), py = Math.floor(c.y), pz = Math.floor(c.z);
+    var k = railIndex(T, px, py - 1, pz);                  // rail lookup (M6)
+    if (k >= 0) py = py - 1;
+    else { k = railIndex(T, px, py, pz); if (k < 0) return false; }
+    var shape = T.shape[k], kind = T.kind[k];
+    var oldY = getPosY(T, c.x, c.y, c.z);                   // track height before (R10)
+    var y = py, power = kind === KIND_ON, halt = kind === KIND_OFF;
+    var slide = 0.0078125;                                  // slope pull (R3)
+    if (shape === 2) { c.vx += -slide; y += 1; }
+    else if (shape === 3) { c.vx += slide; y += 1; }
+    else if (shape === 4) { c.vz += slide; y += 1; }
+    else if (shape === 5) { c.vz += -slide; y += 1; }
+    var ex = EXITS[shape], e0 = ex[0], e1 = ex[1];          // steering (R4)
+    var xD = e1[0] - e0[0], zD = e1[2] - e0[2];
+    var length = Math.sqrt(xD * xD + zD * zD);
+    if (c.vx * xD + c.vz * zD < 0.0) { xD = 0 - xD; zD = 0 - zD; }
+    var pw = Math.min(2.0, Math.sqrt(c.vx * c.vx + c.vz * c.vz));
+    c.vx = pw * xD / length; c.vz = pw * zD / length;
+    if (halt) {                                             // halt rail (P3)
+      if (Math.sqrt(c.vx * c.vx + c.vz * c.vz) < 0.03) { c.vx = 0.0; c.vz = 0.0; }
+      else { c.vx = c.vx * 0.5; c.vz = c.vz * 0.5; }
+    }
+    var x0 = px + 0.5 + e0[0] * 0.5, z0 = pz + 0.5 + e0[2] * 0.5;      // centring (R5)
+    var x1 = px + 0.5 + e1[0] * 0.5, z1 = pz + 0.5 + e1[2] * 0.5;
+    var cxD = x1 - x0, czD = z1 - z0, progress;
+    if (cxD === 0.0) progress = c.z - pz;
+    else if (czD === 0.0) progress = c.x - px;
+    else progress = ((c.x - x0) * cxD + (c.z - z0) * czD) * 2.0;
+    c.x = x0 + cxD * progress; c.y = y; c.z = z0 + czD * progress;
+    var sc = T.loaded ? 0.75 : 1.0;                         // a rider shortens every move (B1)
+    var dx = Math.min(Math.max(sc * c.vx, -0.4), 0.4);      // move cap (R6)
+    var dz = Math.min(Math.max(sc * c.vz, -0.4), 0.4);
+    var hit = T.conductorBehind ? collide(T, c, dx, dz) : null;
+    if (hit === null) { c.x = c.x + dx; c.y = c.y + 0.0; c.z = c.z + dz; }
+    else {
+      var mx = hit[0], mz = hit[2], mlen = mx * mx + mz * mz, dlen = dx * dx + dz * dz;
+      if (mlen > 1.0e-7 || dlen - mlen < 1.0e-7) { c.x = c.x + mx; c.y = c.y + 0.0; c.z = c.z + mz; }   // C4
+      if (!(Math.abs(mx - dx) < F_1E5)) c.vx = -c.vx * 0.0;   // a blocked axis loses its speed (C5)
+      if (!(Math.abs(mz - dz) < F_1E5)) c.vz = -c.vz * 0.0;
+    }
+    if (e0[1] !== 0 && Math.floor(c.x) - px === e0[0] && Math.floor(c.z) - pz === e0[2]) c.y = c.y + e0[1];   // R7
+    else if (e1[1] !== 0 && Math.floor(c.x) - px === e1[0] && Math.floor(c.z) - pz === e1[2]) c.y = c.y + e1[1];
+    var fr = T.loaded ? 0.997 : 0.96;                       // rail friction (R8), less with a rider (B2)
+    c.vx = c.vx * fr; c.vz = c.vz * fr;
+    var newY = getPosY(T, c.x, c.y, c.z);                   // height and speed (R10)
+    if (newY === newY && oldY === oldY) {
+      var sp = (oldY - newY) * 0.05;
+      var op = Math.sqrt(c.vx * c.vx + c.vz * c.vz);
+      if (op > 0.0) { var kk = (op + sp) / op; c.vx = c.vx * kk; c.vz = c.vz * kk; }
+      c.y = newY;
+    }
+    var xn = Math.floor(c.x), zn = Math.floor(c.z);         // new block (R11)
+    if (xn !== px || zn !== pz) {
+      var op2 = Math.sqrt(c.vx * c.vx + c.vz * c.vz);
+      c.vx = op2 * (xn - px); c.vz = op2 * (zn - pz);
+    }
+    if (power) {                                            // boost (P1), standing start (P2)
+      var sl = Math.sqrt(c.vx * c.vx + c.vz * c.vz);
+      if (sl > 0.01) { c.vx = c.vx + c.vx / sl * 0.06; c.vz = c.vz + c.vz / sl * 0.06; }
+      else if (shape === 1) {
+        if (isConductor(T, px - 1, py, pz)) c.vx = 0.02;
+        else if (isConductor(T, px + 1, py, pz)) c.vx = -0.02;
+      } else if (shape === 0) {
+        if (isConductor(T, px, py, pz - 1)) c.vz = 0.02;
+        else if (isConductor(T, px, py, pz + 1)) c.vz = -0.02;
+      }
+    }
+    return true;
+  }
+
+  /* ---------- layouts ---------- */
+  // tokens: start S / Dr / Dp, then <F|U|D><r|p|h> per rail, then E (the parking slope)
+  function parse(code) {
+    var t = String(code).trim().split(/\s+/);
+    if (t.length < 2 || ['S', 'Dr', 'Dp'].indexOf(t[0]) < 0 || t[t.length - 1] !== 'E') throw new Error('bad layout code: ' + code);
+    var blocks = [{ s: t[0] === 'S' ? 'F' : 'D', k: t[0] === 'S' ? 'p' : t[0][1] }];
+    for (var i = 1; i < t.length - 1; i++) {
+      if (!/^[FUD][rph]$/.test(t[i])) throw new Error('bad rail "' + t[i] + '" in ' + code);
+      blocks.push({ s: t[i][0], k: t[i][1] });
+    }
+    blocks.push({ s: 'U', k: 'h' });
+    return { start: t[0], blocks: blocks };
+  }
+  function pairOk(a, b) {
+    if (a.s === 'U' && b.s === 'D') return false;           // a peak needs a flat rail on top
+    if ((a.k === 'p' && b.k === 'h') || (a.k === 'h' && b.k === 'p')) return false;   // they'd share power (P6)
+    return true;
+  }
+  function levels(blocks) {
+    var out = [], e = 0;
+    for (var i = 0; i < blocks.length; i++) {
+      var s = blocks[i].s;
+      if (s === 'D') { e -= 1; out.push(e); } else { out.push(e); if (s === 'U') e += 1; }
+    }
+    return out;
+  }
+  function shapeOf(f, s) { return s === 'F' ? f.flat : s === 'U' ? f.up : f.down; }
+  // The loading run in front of a boat track (mcredstone/boat_prefab.py): two slopes into a
+  // flat run with the boat on it, ending on a rail straight above the start rail, with the
+  // stopper in the next block. Breaking the glass under that rail drops the cart onto the
+  // track. `put` and `at` come from build(), so everything lands in the same block list.
+  function addLoader(put, at, f, stopper, facing, ys, L) {
+    var GLASS = 'minecraft:white_stained_glass', CONCRETE = 'minecraft:white_concrete';
+    var base = ys[0];                                                // levels here are from rail 0
+    var lv = function (k) { return base + (k === BOAT.FIRST ? BOAT.LEVEL + 2 : k === BOAT.FIRST + 1 ? BOAT.LEVEL + 1 : BOAT.LEVEL); };
+    var rails = [];
+    for (var k = BOAT.FIRST; k <= BOAT.LAST; k++) {
+      var shape = k <= BOAT.FIRST + 1 ? 'D' : 'F';
+      put(at(k, lv(k)), 'minecraft:rail', { shape: SHAPE_NAMES[shapeOf(f, shape)], waterlogged: 'false' }, true);
+      put(at(k, lv(k) - 1), GLASS, {}, true);
+      rails.push({ k: k, pos: at(k, lv(k)), s: shape, kind: 'r' });
+    }
+    put(at(BOAT.FIRST - 1, base + BOAT.LEVEL + 2), GLASS, {}, true);        // cap: the first slope forms on it
+    put(at(BOAT.FIRST - 1, base + BOAT.LEVEL + 3), 'minecraft:rail', { shape: SHAPE_NAMES[f.flat], waterlogged: 'false' }, true);
+    var stopBlock;
+    if (stopper === 'block') {
+      stopBlock = at(BOAT.STOP_K, base + BOAT.LEVEL);
+      put(stopBlock, CONCRETE, {}, true);
+    } else {
+      stopBlock = at(BOAT.STOP_K, base + BOAT.LEVEL);
+      put(at(BOAT.STOP_K, base + BOAT.LEVEL, 1), CONCRETE, {}, true);       // the bud grows on this block
+      put(stopBlock, STOPPER_BLOCK[stopper], { facing: BUD_SIDE[facing], waterlogged: 'false' }, true);
+    }
+    var boatRail = at(BOAT.BOAT_K, base + BOAT.LEVEL);
+    return {
+      rails: rails,
+      start: at(BOAT.FIRST, base + BOAT.LEVEL + 2),                          // place the cart here
+      boatRail: boatRail,
+      boat: [boatRail[0] + 0.5, boatRail[1], boatRail[2] + 0.5],      // the boat's own spot
+      stop: stopBlock,
+      stopper: stopper,
+      breakGlass: at(BOAT.LAST, base + BOAT.LEVEL - 1),                      // break this to drop the cart
+      dropRail: at(BOAT.LAST, base + BOAT.LEVEL),
+      level: BOAT.LEVEL
+    };
+  }
+
+  function trackFromCode(code, origin, facing, opt) {
+    var L = parse(code), f = FACINGS[facing], ys = levels(L.blocks);
+    var T = newTrack(origin, facing, L.blocks.length);
+    if (opt && opt.boat) { T.loaded = true; T.startAt = boatFrac(opt.stopper || 'block', facing); }
+    for (var i = 0; i < L.blocks.length; i++) {
+      T.shape[i] = shapeOf(f, L.blocks[i].s); T.kind[i] = KINDS[L.blocks[i].k]; T.level[i] = ys[i];
+    }
+    T.n = L.blocks.length; T.conductorBehind = L.start === 'S';
+    return { T: T, L: L, ys: ys };
+  }
+  function spawnCart(T) {
+    var f = T.f, y0 = T.Y + T.level[0], slope = T.shape[0] >= 2;
+    if (T.startAt === null) {
+      // minecart item on rail 0: centre, 1/16 up, half a block higher on a slope (M3)
+      return { x: T.X + 0.5, y: y0 + 0.0625 + (slope ? 0.5 : 0.0), z: T.Z + 0.5, vx: 0.0, vz: 0.0 };
+    }
+    // boat cart: the loader drops it onto rail 0 at rest, at the stopper's fraction (B3).
+    // The landing tick only snaps it to the rail line, so the run starts from this state.
+    var c = { x: T.X + (f.du ? T.startAt : 0.5), y: y0 + 0.0625, z: T.Z + (f.dv ? T.startAt : 0.5),
+              vx: 0.0, vz: 0.0 };
+    var yy = getPosY(T, c.x, c.y, c.z);
+    if (yy === yy) c.y = yy;
+    return c;
+  }
+
+  /* ---------- boat carts ----------
+     A cart that carries a boat cannot be placed by hand: it has to pick the boat up while it
+     rolls, and then stop dead against a stopper so that what comes next is exact. The loader
+     (mcredstone/boat_prefab.py) hands the track a cart at rest on the start rail, at the
+     fraction below, with these two changes to its physics:
+       B1 every move is 0.75 x the speed, B2 it keeps 99.7% of its speed a tick, not 96%
+       (OldMinecartBehavior, both keyed on isVehicle()).
+       B3 the stop is the stopper's face less half a cart width: a plain block face, or a bud
+       growing sideways out of a block beside the track, which starts 3/16 (medium, large,
+       cluster) or 4/16 (small) inside its own block (C11). */
+  var STOPPERS = { block: 0.0, bud: 3 / 16, small_bud: 4 / 16 };
+  // the loading run, in steps along the track from the start rail and levels above it
+  var BOAT = { LEVEL: 3, FIRST: -9, BOAT_K: -5, LAST: 0, STOP_K: 1 };
+  var STOPPER_BLOCK = { bud: 'minecraft:medium_amethyst_bud', small_bud: 'minecraft:small_amethyst_bud' };
+  var BUD_SIDE = { south: 'west', north: 'east', east: 'north', west: 'south' };
+  function boatFrac(stopper, facing) {
+    var inset = STOPPERS[stopper];
+    if (inset === undefined) throw new Error('unknown stopper: ' + stopper);
+    var f = FACINGS[facing], positive = (f.du + f.dv) > 0;
+    var v = positive ? 1.0 + inset - HALF_W : 0.0 - inset + HALF_W;
+    return v - Math.floor(v);
+  }
+  function along(T, c) {
+    var f = T.f;
+    return f.du !== 0 ? (Math.floor(c.x) - T.X) * f.du : (Math.floor(c.z) - T.Z) * f.dv;
+  }
+
+  // Reasons a layout can't be built as written (empty = buildable), as check_rules()
+  function problems(blocks) {
+    var bad = [];
+    for (var i = 1; i < blocks.length; i++) {
+      var a = blocks[i - 1], b = blocks[i];
+      if (a.s === 'U' && b.s === 'D') bad.push('rail ' + i + ': a peak needs a flat rail on top');
+      if ((a.k === 'p' && b.k === 'h') || (a.k === 'h' && b.k === 'p')) bad.push('rail ' + i + ': ON and OFF powered rails touch');
+    }
+    return bad;
+  }
+
+  // Full run of a layout, like floatcart_layouts.run(): until the cart sits still on the
+  // parking slope. Returns {ok, x, y, z, ticks, yfrac, path}.
+  function run(code, origin, facing, wantPath, maxTicks, opt) {
+    var tr = trackFromCode(code, origin, facing, opt), T = tr.T, last = T.n - 1;
+    var bad = problems(tr.L.blocks);
+    if (bad.length) return { ok: false, why: 'not buildable: ' + bad.join('; ') };
+    maxTicks = maxTicks || 20000;
+    var c = spawnCart(T), still = 0, px = NaN, py = NaN, pz = NaN, path = wantPath ? [[c.x, c.y, c.z, 0]] : null;
+    for (var t = 1; t <= maxTicks; t++) {
+      var k = railAt(T, c);
+      if (!tick(T, c)) return { ok: false, why: 'left the rails at tick ' + t };
+      if (path) path.push([c.x, c.y, c.z, k]);
+      var same = c.x === px && c.y === py && c.z === pz;
+      if (same && along(T, c) === last) {
+        if (++still >= 3) {
+          var yp = T.Y + T.level[last];
+          if (path) path.length -= 3;
+          return { ok: true, x: c.x, y: c.y, z: c.z, ticks: t - 3, yfrac: c.y - yp, path: path };
+        }
+      } else still = 0;
+      px = c.x; py = c.y; pz = c.z;
+    }
+    return { ok: false, why: 'never parked' };
+  }
+  function railAt(T, c) {
+    var px = Math.floor(c.x), py = Math.floor(c.y), pz = Math.floor(c.z);
+    var k = railIndex(T, px, py - 1, pz);
+    return k >= 0 ? k : railIndex(T, px, py, pz);
+  }
+
+  // Breaking the parking rail under a parked cart (M5, F1-F3, C3-C5). A parked cart has no
+  // speed, so it falls straight down: x and z never change. It lands on the highest block
+  // under its hitbox (the glass under a rail, or the stopper past the parking slope), unless
+  // that block's top is less than about 0.0003 below it: a move cut that short is not made
+  // at all (C4), so the cart stays where it is. Returns the y it ends at.
+  var F_095 = Math.fround(0.95);
+  function dropY(code, origin, facing, c, opt) {
+    var T = trackFromCode(code, origin, facing, opt).T, f = T.f, n = T.n;
+    var a = f.du !== 0 ? c.x : c.z, o = f.du !== 0 ? T.X : T.Z, s = f.du !== 0 ? f.du : f.dv;
+    var tops = [];
+    for (var k = -1; k <= n; k++) {
+      var j = s > 0 ? o + k : o - k;                  // track column k spans [j, j + 1] on the axis
+      if (!(a - HALF_W + EPS < j + 1 && a + HALF_W - EPS >= j)) continue;
+      if (k >= 0 && k < n) tops.push(T.Y + T.level[k]);    // glass under rail k
+      if (k === n) tops.push(T.Y + T.level[n - 1] + 1);    // stopper glass
+    }
+    var y = c.y, vy = 0.0, onGround = false;
+    for (var t = 0; t < 400; t++) {
+      vy += -0.04;                                    // gravity (M5)
+      if (onGround) vy = vy * 0.5;                    // ground friction (F2)
+      var dy = vy, my = dy;
+      if (dy * dy !== 0.0) {
+        var dist = dy, hit = false;
+        for (var i = 0; i < tops.length; i++) {
+          var top = tops[i], bot = top - 1;
+          var inArea = dy < 0.0 ? (y + dy < top && y + HEIGHT > bot) : (y < top && y + HEIGHT + dy > bot);
+          if (!inArea) continue;
+          hit = true;
+          if (Math.abs(dist) < EPS) { dist = 0.0; break; }
+          var aMin = findIndex(bot, top, y + EPS), aMax = findIndex(bot, top, y + HEIGHT - EPS), nd;
+          if (dist > 0.0) { if (aMax + 1 <= 0) { nd = bot - (y + HEIGHT); if (nd >= -EPS) dist = Math.min(dist, nd); } }
+          else if (aMin - 1 >= 0) { nd = top - y; if (nd <= EPS) dist = Math.max(dist, nd); }
+        }
+        if (hit) my = Math.abs(dist) < EPS ? 0.0 : dist;
+      }
+      var mlen = my * my, dlen = dy * dy;
+      if (mlen > 1.0e-7 || dlen - mlen < 1.0e-7) y = y + my;    // C4
+      var vcol = dy !== my;
+      onGround = vcol && dy < 0.0;
+      if (Math.abs(dy) > 0.0 && vcol) vy = (0.0 - vy) * 1.0 * 0.0;   // C5
+      if (!onGround) vy = vy * F_095;                 // air drag (F3)
+    }
+    return y;
+  }
+
+  function isFloatcart(y) {
+    var top = y + HEIGHT, b = Math.floor(top);
+    return top > b && top - F_1E5 < b;
+  }
+  function frac(v) { return v - Math.floor(v); }
+  function circDist(a, b) { var d = Math.abs(frac(a) - frac(b)); return Math.min(d, 1 - d); }
+  function inRange(f, lo, hi) { return lo <= hi ? f >= lo && f <= hi : f >= lo || f <= hi; }
+
+  /* ---------- brute force ---------- */
+  var ALPHABETS = {
+    dry: ['Fr', 'Fp', 'Fh', 'Ur', 'Up', 'Uh', 'Dr', 'Dp', 'Dh'],
+    plain: ['Fr', 'Fh', 'Ur', 'Uh', 'Dr', 'Dh']
+  };
+  var MAX_TICKS_BLOCK = 400;
+
+  // One search task, like floatcart_layouts.Search: start + fixed first rails, then every
+  // continuation up to `depth` rails after the start. The cart's state at its first tick
+  // inside rail k depends only on rails 0..k, so each rail's state is saved and reused by
+  // every continuation. What is aimed at: opt.axis 'y' (the parked cart's height), or 'x' /
+  // 'z' (its position along the track, kept when the parking rail is broken, see dropY);
+  // opt.target is the fraction aimed at, and a result counts as a match when its fraction is
+  // in [opt.lo, opt.hi] (wrapping past 1 when lo > hi; default target +- opt.tol). Keeps the
+  // `keep` best: closest to the target, or with opt.sort 'short' matches first, shortest first.
+  function searchTask(opt) {
+    var f = FACINGS[opt.facing], alpha = ALPHABETS[opt.alphabet].map(function (t) { return { s: t[0], k: t[1], t: t }; });
+    var cap = opt.depth + 3;
+    var T = newTrack(opt.origin, opt.facing, cap);
+    T.conductorBehind = opt.start === 'S';
+    if (opt.boat) { T.loaded = true; T.startAt = boatFrac(opt.stopper || 'block', opt.facing); }
+    var target = opt.target, keep = opt.keep, top = [], worst = Infinity;
+    var stats = { nodes: 0, parked: 0, inside: 0, floats: 0 };
+    var minMid = opt.minMid || 0;                          // minMid: shortest track (rails after the start) to end
+    var axis = opt.axis || 'y', shortFirst = opt.sort === 'short';
+    var tol = opt.tol || 0;
+    var lo = opt.lo !== undefined ? opt.lo : frac(target - tol), hi = opt.hi !== undefined ? opt.hi : frac(target + tol);
+    var tokens = [];
+
+    function codeNow() { return opt.start + ' ' + tokens.join(' ') + (tokens.length ? ' ' : '') + 'E'; }
+    function record(c, parkLevel) {
+      stats.parked++;
+      var v = axis === 'x' ? c.x : axis === 'z' ? c.z : c.y;
+      var d = circDist(v, target), inside = inRange(frac(v), lo, hi);
+      if (inside) stats.inside++;
+      var fl = isFloatcart(c.y);
+      if (fl) stats.floats++;
+      if (opt.each) opt.each(codeNow(), c.y);
+      var rails = tokens.length + 2;
+      var score = shortFirst && inside ? -1000 + rails + d : d;
+      if (top.length >= keep && score >= worst) return;
+      var code = codeNow();
+      for (var i = 0; i < top.length; i++) if (top[i].code === code) return;
+      top.push({ code: code, x: c.x, y: c.y, z: c.z, yfrac: c.y - (T.Y + parkLevel), dist: d, inside: inside,
+                 float: fl, rails: rails, score: score });
+      top.sort(function (a, b) { return a.score - b.score; });
+      if (top.length > keep) top.length = keep;
+      worst = top.length >= keep ? top[top.length - 1].score : Infinity;
+    }
+    function copy(c) { return { x: c.x, y: c.y, z: c.z, vx: c.vx, vz: c.vz }; }
+    function advance(snap, k) {
+      var c = copy(snap), still = 0, py = NaN, pz = NaN, px = NaN;
+      for (var t = 0; t < MAX_TICKS_BLOCK; t++) {
+        if (!tick(T, c)) return null;
+        var bz = along(T, c);
+        if (bz > k) return c;
+        if (bz < k - 1) return null;
+        if (c.x === px && c.y === py && c.z === pz) { if (++still >= 3) return null; } else still = 0;
+        px = c.x; py = c.y; pz = c.z;
+      }
+      return null;
+    }
+    function park(snap, k) {
+      var c = copy(snap), still = 0, py = NaN, pz = NaN, px = NaN;
+      for (var t = 0; t < MAX_TICKS_BLOCK; t++) {
+        if (!tick(T, c)) return null;
+        var bz = along(T, c);
+        if (bz !== k + 1 && bz !== k) return null;
+        if (c.x === px && c.y === py && c.z === pz && bz === k + 1) { if (++still >= 3) return c; }
+        else still = 0;
+        px = c.x; py = c.y; pz = c.z;
+      }
+      return null;
+    }
+    function place(k, b, lvl) { T.shape[k] = shapeOf(f, b.s); T.kind[k] = KINDS[b.k]; T.level[k] = lvl; T.n = k + 1; }
+    var parkBlock = { s: 'U', k: 'h' };
+    function expand(k, snap, last, entry) {
+      stats.nodes++;
+      if (opt.progress && (stats.nodes & 16383) === 0) opt.progress(stats);
+      if (last.k !== 'p' && k >= minMid && pairOk(last, parkBlock)) {   // end the track here
+        place(k + 1, parkBlock, entry);
+        var c = park(snap, k);
+        if (c) record(c, entry);
+        T.n = k + 1;
+      }
+      if (k + 1 > opt.depth) return;
+      for (var i = 0; i < alpha.length; i++) {                  // or add another rail
+        var b = alpha[i];
+        if (!pairOk(last, b)) continue;
+        var lvl = b.s === 'D' ? entry - 1 : entry;
+        var nxt = entry + (b.s === 'U' ? 1 : b.s === 'D' ? -1 : 0);
+        place(k + 1, b, lvl);
+        var c2 = advance(snap, k);
+        if (c2) { tokens.push(b.t); expand(k + 1, c2, b, nxt); tokens.pop(); }
+        T.n = k + 1;
+      }
+    }
+    // start rail and any fixed first rails
+    var b0 = opt.start === 'S' ? { s: 'F', k: 'p' } : { s: 'D', k: opt.start[1] };
+    var y0 = b0.s === 'D' ? -1 : 0;
+    place(0, b0, y0);
+    var c0 = spawnCart(T), last = b0, entry = y0, k = 0;
+    for (var j = 0; j < (opt.first || []).length; j++) {
+      var tb = opt.first[j], b = { s: tb[0], k: tb[1], t: tb };
+      if (!pairOk(last, b)) return { top: top, stats: stats };
+      var lvl = b.s === 'D' ? entry - 1 : entry;
+      var nxt = entry + (b.s === 'U' ? 1 : b.s === 'D' ? -1 : 0);
+      place(k + 1, b, lvl);
+      c0 = advance(c0, k);
+      if (!c0) return { top: top, stats: stats };
+      tokens.push(tb); last = b; entry = nxt; k++;
+    }
+    expand(k, c0, last, entry);
+    return { top: top, stats: stats };
+  }
+
+  // Search tasks: every start, split by its first `split` rails, as the Python search does.
+  // A task with fixed first rails only ends tracks after them, so one more task per start
+  // covers the shorter tracks (unless pythonSplit is set, which copies the Python search).
+  function makeTasks(alphabet, starts, depth, split, pythonSplit) {
+    var a = ALPHABETS[alphabet], tasks = [], s = Math.min(split, depth);
+    starts.forEach(function (st) {
+      if (s === 0) { tasks.push({ start: st, first: [], alphabet: alphabet, depth: depth }); return; }
+      if (!pythonSplit) tasks.push({ start: st, first: [], alphabet: alphabet, depth: s - 1 });
+      (function grow(prefix) {
+        if (prefix.length === s) { tasks.push({ start: st, first: prefix, alphabet: alphabet, depth: depth }); return; }
+        a.forEach(function (t) { grow(prefix.concat([t])); });
+      })([]);
+    });
+    return tasks;
+  }
+
+  /* ---------- blocks for a layout (floatcart_layouts.build, with levers and end caps) ---------- */
+  var LEVER_FACING = { '1,0': 'east', '-1,0': 'west', '0,1': 'south', '0,-1': 'north' };
+  function build(code, origin, facing, opt) {
+    var L = parse(code), f = FACINGS[facing], ys = levels(L.blocks), g = {}, list = [];
+    var ox = origin[0], oy = origin[1], oz = origin[2];
+    function at(k, y, side) { side = side || 0; return [ox + f.du * k + f.lu * side, oy + y, oz + f.dv * k + f.lv * side]; }
+    function put(p, name, props, overwrite) {
+      var key = p.join(',');
+      if (g[key] && !overwrite) return;
+      g[key] = { x: p[0], y: p[1], z: p[2], name: name, props: props || {} };
+    }
+    function railProps(shape, kind) {
+      var pr = { shape: SHAPE_NAMES[shape], waterlogged: 'false' };
+      if (kind !== 'r') pr.powered = kind === 'p' ? 'true' : 'false';
+      return pr;
+    }
+    var GLASS = 'minecraft:white_stained_glass';
+    var rails = [], caps = [], sources = [], conductor = null, poweredBy = [];
+    for (var k = 0; k < L.blocks.length; k++) {
+      var b = L.blocks[k];
+      put(at(k, ys[k]), b.k === 'r' ? 'minecraft:rail' : 'minecraft:powered_rail', railProps(shapeOf(f, b.s), b.k), true);
+      put(at(k, ys[k] - 1), GLASS, {}, true);
+      rails.push({ k: k, pos: at(k, ys[k]), s: b.s, kind: b.k });
+    }
+    var last = L.blocks.length - 1;
+    put(at(last + 1, ys[last]), GLASS, {}, true);                            // stopper
+    put(at(last + 1, ys[last] + 1), 'minecraft:rail', railProps(f.flat, 'r'), true);   // end cap
+    caps.push({ glass: at(last + 1, ys[last]), rail: at(last + 1, ys[last] + 1) });
+    var lever = LEVER_FACING[(-f.lu) + ',' + (-f.lv)];
+    if (L.blocks[0].s === 'D') {
+      put(at(-1, ys[0]), GLASS, {}, true);
+      put(at(-1, ys[0] + 1), 'minecraft:rail', railProps(f.flat, 'r'), true);
+      caps.unshift({ glass: at(-1, ys[0]), rail: at(-1, ys[0] + 1) });
+    }
+    if (L.start === 'S') {
+      put(at(-1, 0), 'minecraft:white_concrete', {}, true);
+      put(at(-1, 0, -1), 'minecraft:lever', { face: 'wall', facing: lever, powered: 'true' }, true);
+      conductor = { concrete: at(-1, 0), lever: at(-1, 0, -1) };
+    }
+    var levers = 0;
+    k = 0;
+    while (k < L.blocks.length) {
+      if (L.blocks[k].k === 'p') {
+        var j = k;
+        while (j + 1 < L.blocks.length && L.blocks[j + 1].k === 'p') j++;
+        for (var s0 = k; s0 <= j; s0 += 9) {                               // a source reaches 8 rails (P6)
+          for (var q = s0; q <= Math.min(j, s0 + 8); q++) poweredBy[q] = s0;
+          if (L.start === 'S' && k === 0 && s0 === 0) continue;             // the start conductor powers rail 0
+          var side = at(s0, ys[s0], -1), key = side.join(',');
+          if (g[key] && g[key].name !== GLASS) continue;
+          put(side, 'minecraft:white_concrete', {}, true);
+          put(at(s0, ys[s0], -2), 'minecraft:lever', { face: 'wall', facing: lever, powered: 'true' }, true);
+          sources.push({ k: s0, concrete: side, lever: at(s0, ys[s0], -2) });
+        }
+        k = j + 1;
+      } else k++;
+    }
+    var loader = null;
+    if (opt && opt.boat) loader = addLoader(put, at, f, opt.stopper || 'block', facing, ys, L);
+    Object.keys(g).forEach(function (key) { list.push(g[key]); if (g[key].name === 'minecraft:lever') levers++; });
+    return { blocks: list, ys: ys, L: L, levers: levers, rails: rails, caps: caps, sources: sources,
+             conductor: conductor, poweredBy: poweredBy, side: lever, loader: loader };
+  }
+
+  // Positions a layout is checked at (as floatcart_layouts.PLACEMENTS)
+  var PLACEMENTS = [[0, 64, 0], [2, 1, 9], [-7, 64, -7], [5, 64, -3], [0, -60, 0], [0, 300, 0],
+    [140, 70, 150], [-150, 70, -140], [1000, 64, -1000], [-4096, 12, 4096],
+    [123456, 70, -654321], [-654321, 70, 123456], [2999000, 64, -2999000],
+    [-29999000, 64, 29999000], [29999000, 64, -29999000]];
+
+  // A layout rerun at every placement: in all 4 directions for a y target, or in the given
+  // direction for an x or z target (the position along the track depends on the direction).
+  // o: {axis, target, lo, hi, facing}. min/max: the aimed-at fraction's spread. The
+  // placement is the start rail's block, as in the page.
+  function verify(code, o) {
+    var axis = o.axis || 'y', facings = axis === 'y' ? ['south', 'north', 'east', 'west'] : [o.facing];
+    var res = { runs: 0, parked: 0, within: 0, floatcarts: 0, min: Infinity, max: -Infinity, worstDist: 0, facings: facings };
+    var start = parse(code).start;
+    facings.forEach(function (fc) {
+      PLACEMENTS.forEach(function (p) {
+        res.runs++;
+        var r = run(code, start === 'S' ? p : [p[0], p[1] + 1, p[2]], fc, false, 0, o.boat ? o : null);
+        if (!r.ok) return;
+        res.parked++;
+        var v = axis === 'x' ? r.x : axis === 'z' ? r.z : r.y, f = frac(v), d = circDist(v, o.target);
+        if (inRange(f, o.lo, o.hi)) res.within++;
+        if (isFloatcart(r.y)) res.floatcarts++;
+        res.min = Math.min(res.min, f); res.max = Math.max(res.max, f);
+        res.worstDist = Math.max(res.worstDist, d);
+      });
+    });
+    return res;
+  }
+
+  return {
+    HEIGHT: HEIGHT, F_1E5: F_1E5, WIN_LO: WIN_LO, WIN_HI: WIN_HI, FACINGS: FACINGS, SHAPE_NAMES: SHAPE_NAMES,
+    ALPHABETS: ALPHABETS, PLACEMENTS: PLACEMENTS,
+    parse: parse, levels: levels, pairOk: pairOk, problems: problems, trackFromCode: trackFromCode, spawnCart: spawnCart,
+    tick: tick, run: run, dropY: dropY, isFloatcart: isFloatcart, frac: frac, circDist: circDist, inRange: inRange,
+    searchTask: searchTask, makeTasks: makeTasks, build: build, verify: verify,
+    STOPPERS: STOPPERS, boatFrac: boatFrac, BOAT: BOAT
+  };
+}
+</script>
+<script>
+/*
+  Litematica (.litematic) writer for the floatcart finder: the same file layout as
+  schematic_writer.py (format Version 7, SubVersion 1, MinecraftDataVersion 4903 = Java 26.2).
+  gzip -> big-endian NBT -> one region whose corner is the blocks' minimum corner, block
+  states tightly bit-packed into 64-bit words (air = palette entry 0, index y*w*l + z*w + x).
+*/
+function makeLitematicWriter() {
+  'use strict';
+  var END = 0, BYTE = 1, INT = 3, LONG = 4, STRING = 8, LIST = 9, COMPOUND = 10, LONG_ARRAY = 12;
+
+  function Writer() { this.buf = new Uint8Array(4096); this.n = 0; this.dv = new DataView(this.buf.buffer); }
+  Writer.prototype.room = function (k) {
+    if (this.n + k <= this.buf.length) return;
+    var b = new Uint8Array(Math.max(this.buf.length * 2, this.n + k));
+    b.set(this.buf.subarray(0, this.n)); this.buf = b; this.dv = new DataView(b.buffer);
+  };
+  Writer.prototype.u8 = function (v) { this.room(1); this.buf[this.n++] = v & 255; };
+  Writer.prototype.u16 = function (v) { this.room(2); this.dv.setUint16(this.n, v); this.n += 2; };
+  Writer.prototype.i32 = function (v) { this.room(4); this.dv.setInt32(this.n, v); this.n += 4; };
+  // 64-bit values as [high 32 bits, low 32 bits], so no BigInt is needed
+  Writer.prototype.i64 = function (v) { this.room(8); this.dv.setUint32(this.n, v[0] >>> 0); this.dv.setUint32(this.n + 4, v[1] >>> 0); this.n += 8; };
+  Writer.prototype.str = function (s) {
+    for (var i = 0; i < s.length; i++) if (s.charCodeAt(i) > 126 || s.charCodeAt(i) < 32) throw new Error('ASCII only: ' + s);
+    this.u16(s.length);
+    for (var j = 0; j < s.length; j++) this.u8(s.charCodeAt(j));
+  };
+
+  // values: ['int', n] ['long', [hi, lo]] ['string', s] ['longArray', [[hi, lo]...]] ['list', type, [values]]
+  // ['compound', [[name, value], ...]]
+  var TYPE = { byte: BYTE, int: INT, long: LONG, string: STRING, list: LIST, compound: COMPOUND, longArray: LONG_ARRAY };
+  function payload(w, v) {
+    switch (v[0]) {
+      case 'byte': w.u8(v[1]); break;
+      case 'int': w.i32(v[1]); break;
+      case 'long': w.i64(v[1]); break;
+      case 'string': w.str(v[1]); break;
+      case 'longArray': w.i32(v[1].length); v[1].forEach(function (x) { w.i64(x); }); break;
+      case 'list':
+        if (v[2].length && v[1] === END) throw new Error('a non-empty list needs an item type');
+        w.u8(v[1]); w.i32(v[2].length); v[2].forEach(function (x) { payload(w, x); }); break;
+      case 'compound':
+        v[1].forEach(function (e) { w.u8(TYPE[e[1][0]]); w.str(e[0]); payload(w, e[1]); });
+        w.u8(END); break;
+      default: throw new Error('no NBT type ' + v[0]);
+    }
+  }
+  function xyz(x, y, z) { return ['compound', [['x', ['int', x]], ['y', ['int', y]], ['z', ['int', z]]]]; }
+  function bitsFor(n) { var b = 0, m = n - 1; while (m > 0) { b++; m = Math.floor(m / 2); } return Math.max(2, b); }
+  // Tight packing: entry i fills bits i*nbits .. of one long bit stream, least significant
+  // bit first, cut into 64-bit words (built here as pairs of 32-bit halves).
+  function pack(cells, nbits) {
+    var longs = Math.ceil(cells.length * nbits / 64), w = new Uint32Array(longs * 2);
+    for (var i = 0; i < cells.length; i++) {
+      var v = cells[i];
+      if (!v) continue;
+      var start = i * nbits, k = start >>> 5, off = start & 31;
+      w[k] = (w[k] | (v << off)) >>> 0;
+      if (off + nbits > 32) w[k + 1] = (w[k + 1] | (v >>> (32 - off))) >>> 0;
+    }
+    var out = [];
+    for (var j = 0; j < longs; j++) out.push([w[2 * j + 1], w[2 * j]]);
+    return out;
+  }
+
+  // blocks: [{x, y, z, name, props}]; tileEntities (optional): [{x, y, z, data}], data being
+  // [[tag, value], ...] in the format above, written with region-relative x, y, z first (as
+  // schematic_writer.py). -> {bytes (uncompressed NBT), offset, size}
+  function encode(blocks, name, author, description, nowMs, tileEntities) {
+    var lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    blocks.forEach(function (b) {
+      lo = [Math.min(lo[0], b.x), Math.min(lo[1], b.y), Math.min(lo[2], b.z)];
+      hi = [Math.max(hi[0], b.x), Math.max(hi[1], b.y), Math.max(hi[2], b.z)];
+    });
+    var sx = hi[0] - lo[0] + 1, sy = hi[1] - lo[1] + 1, sz = hi[2] - lo[2] + 1;
+    var palette = [{ name: 'minecraft:air', props: {} }], index = { 'minecraft:air': 0 };
+    var cells = new Array(sx * sy * sz).fill(0), total = 0;
+    blocks.forEach(function (b) {
+      if (b.name === 'minecraft:air') return;
+      var keys = Object.keys(b.props || {}).sort();
+      var key = b.name + '[' + keys.map(function (k) { return k + '=' + b.props[k]; }).join(',') + ']';
+      if (!(key in index)) { index[key] = palette.length; palette.push({ name: b.name, props: b.props || {}, keys: keys }); }
+      cells[(b.y - lo[1]) * (sx * sz) + (b.z - lo[2]) * sx + (b.x - lo[0])] = index[key];
+    });
+    cells.forEach(function (c) { if (c) total++; });
+    var nbits = bitsFor(palette.length);
+    var pal = palette.map(function (p) {
+      var e = [['Name', ['string', p.name]]];
+      if (p.keys && p.keys.length) e.push(['Properties', ['compound', p.keys.map(function (k) { return [k, ['string', String(p.props[k])]]; })]]);
+      return ['compound', e];
+    });
+    var ms = nowMs === undefined ? Date.now() : nowMs, now = [Math.floor(ms / 4294967296), ms % 4294967296];
+    var root = ['compound', [
+      ['MinecraftDataVersion', ['int', 4903]],
+      ['Version', ['int', 7]],
+      ['SubVersion', ['int', 1]],
+      ['Metadata', ['compound', [
+        ['Name', ['string', name]], ['Author', ['string', author]], ['Description', ['string', description]],
+        ['RegionCount', ['int', 1]], ['TotalVolume', ['int', sx * sy * sz]], ['TotalBlocks', ['int', total]],
+        ['TimeCreated', ['long', now]], ['TimeModified', ['long', now]],
+        ['EnclosingSize', xyz(sx, sy, sz)]]]],
+      ['Regions', ['compound', [[name, ['compound', [
+        ['BlockStatePalette', ['list', COMPOUND, pal]],
+        ['BlockStates', ['longArray', pack(cells, nbits)]],
+        ['TileEntities', tileEntities && tileEntities.length
+          ? ['list', COMPOUND, tileEntities.map(function (t) {
+              return ['compound', [['x', ['int', t.x - lo[0]]], ['y', ['int', t.y - lo[1]]], ['z', ['int', t.z - lo[2]]]].concat(t.data)];
+            })]
+          : ['list', END, []]],
+        ['PendingBlockTicks', ['list', END, []]],
+        ['PendingFluidTicks', ['list', END, []]],
+        ['Entities', ['list', END, []]],
+        ['Position', xyz(0, 0, 0)],
+        ['Size', xyz(sx, sy, sz)]]]]]]]]];
+    var w = new Writer();
+    w.u8(COMPOUND); w.str(''); payload(w, root);
+    return { bytes: w.buf.slice(0, w.n), offset: lo, size: [sx, sy, sz], total: total };
+  }
+
+  // gzip with stored (uncompressed) deflate blocks: valid for every gzip reader, Minecraft's
+  // included, and the files are only a few kilobytes.
+  var CRC = null;
+  function crc32(u8) {
+    if (!CRC) { CRC = new Int32Array(256); for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; CRC[n] = c; } }
+    var crc = -1;
+    for (var i = 0; i < u8.length; i++) crc = CRC[(crc ^ u8[i]) & 255] ^ (crc >>> 8);
+    return (crc ^ -1) >>> 0;
+  }
+  function gzipStored(u8) {
+    var blocks = Math.max(1, Math.ceil(u8.length / 65535));
+    var out = new Uint8Array(10 + u8.length + blocks * 5 + 8), dv = new DataView(out.buffer), p = 0;
+    out.set([0x1f, 0x8b, 8, 0, 0, 0, 0, 0, 0, 255]); p = 10;
+    for (var b = 0; b < blocks; b++) {
+      var s = b * 65535, len = Math.min(65535, u8.length - s);
+      out[p++] = b === blocks - 1 ? 1 : 0;
+      dv.setUint16(p, len, true); dv.setUint16(p + 2, len ^ 0xffff, true); p += 4;
+      out.set(u8.subarray(s, s + len), p); p += len;
+    }
+    dv.setUint32(p, crc32(u8), true); dv.setUint32(p + 4, u8.length, true);
+    return out;
+  }
+  return { encode: encode, gzipStored: gzipStored, crc32: crc32, bitsFor: bitsFor, pack: pack };
+}
+</script>
+<script>
+/*
+  Single-track tester for the floatcart finder: a track plus command blocks that test it by
+  themselves once the schematic is pasted. A port of tester.py, which it must match byte for
+  byte (see tester.py for the design; it reuses test_rig.py's parts, which worked in game).
+  makeTester(E, LW): E = makeEngine(), LW = makeLitematicWriter().
+*/
+function makeTester(E, LW) {
+  'use strict';
+  var SUMMON_T = 60;
+  var TOP = '0.699999988079071', F1E5 = '0.000009999999747378752';
+  var HEIGHT = 0.699999988079071, HALF_W = Math.fround(Math.fround(0.98) / 2);
+  var FACING_NAME = { '1,0': 'east', '-1,0': 'west', '0,1': 'south', '0,-1': 'north' };
+  var GLASS = 'minecraft:white_stained_glass', SIGN = 'minecraft:cherry_wall_sign';
+
+  function zeros(n) { var s = ''; while (n-- > 0) s += '0'; return s; }
+  // A double as a plain decimal (commands take no exponents): the shortest digits that give
+  // the same double back, no trailing zeros, integers without a point (as tester.plain)
+  function plain(v) {
+    if (v === 0) return '0';
+    var m = /^(-?)(\d)(?:\.(\d+))?e([+-]\d+)$/.exec(v.toExponential());
+    var digits = m[2] + (m[3] || ''), point = parseInt(m[4], 10) + 1, out;
+    if (point <= 0) out = '0.' + zeros(-point) + digits;
+    else if (point >= digits.length) out = digits + zeros(point - digits.length);
+    else out = digits.slice(0, point) + '.' + digits.slice(point);
+    return m[1] + out;
+  }
+  function frac10(v) { return v.toFixed(10); }
+  function rangeText(lo, hi) {
+    return lo <= hi ? 'from ' + frac10(lo) + ' to ' + frac10(hi) : 'from ' + frac10(lo) + ' up to 1 or from 0 to ' + frac10(hi);
+  }
+  function cmdState(kind, facing) {
+    var name = { impulse: 'minecraft:command_block', chain: 'minecraft:chain_command_block', repeat: 'minecraft:repeating_command_block' }[kind];
+    return { name: name, props: { conditional: 'false', facing: facing } };
+  }
+  function cmdData(command, auto) {
+    return [['id', ['string', 'minecraft:command_block']], ['Command', ['string', command]], ['auto', ['byte', auto ? 1 : 0]],
+      ['powered', ['byte', 0]], ['conditionMet', ['byte', 0]], ['TrackOutput', ['byte', 0]],
+      ['SuccessCount', ['int', 0]], ['UpdateLastExecution', ['byte', 1]]];
+  }
+  function signData(lines) {
+    function side(msgs) {
+      return ['compound', [['color', ['string', 'black']], ['messages', ['list', 8, msgs.map(function (t) { return ['string', t]; })]],
+        ['has_glowing_text', ['byte', 0]]]];
+    }
+    return [['id', ['string', 'minecraft:sign']], ['is_waxed', ['byte', 0]], ['front_text', side(lines)],
+      ['back_text', side(['', '', '', ''])], ['components', ['compound', []]]];
+  }
+
+  // Blocks, block entities and info for one tester. startRail: the block of the rail the
+  // cart goes on; ticks: how long the cart takes to park (from E.run).
+  function build(code, startRail, facing, axis, lo, hi, uid, ticks) {
+    var L = E.parse(code), start = L.start;
+    var origin = start === 'S' ? [startRail[0], startRail[1], startRail[2]] : [startRail[0], startRail[1] + 1, startRail[2]];
+    var b = E.build(code, origin, facing), f = E.FACINGS[facing];
+    var ys = b.ys, last = ys.length - 1;
+    if (axis !== 'y' && (axis === 'x') !== (f.du !== 0)) throw new Error('x needs a track running east or west, z north or south');
+    function at(k, y, side) { side = side || 0; return [origin[0] + f.du * k + f.lu * side, origin[1] + y, origin[2] + f.dv * k + f.lv * side]; }
+    var list = b.blocks.slice(), taken = {}, tes = [];
+    list.forEach(function (q) { taken[q.x + ',' + q.y + ',' + q.z] = q; });
+    function put(p, st, data) {
+      var key = p.join(',');
+      if (taken[key]) throw new Error('overlap at ' + key);
+      var q = { x: p[0], y: p[1], z: p[2], name: st.name, props: st.props };
+      taken[key] = q; list.push(q);
+      if (data) tes.push({ x: p[0], y: p[1], z: p[2], data: data });
+    }
+    var obj = 'fct' + uid, tag = obj, ptag = 'fctp' + uid, ftag = 'fctf' + uid;
+    var minY = Infinity;
+    b.blocks.forEach(function (q) { minY = Math.min(minY, q.y); });
+    var yb = minY - origin[1] - 2, t = '#t ' + obj + ' matches', tb = null, check;
+    if (axis === 'y') check = SUMMON_T + ticks + 40;
+    else { tb = SUMMON_T + ticks + 20; check = tb + 40; }
+    var limit = Math.max(1000, check + 10);
+
+    var lift = start === 'S' ? 0.0625 : 0.5625, dy = (ys[0] + lift) - (yb + 0.5);
+    put(at(0, yb), cmdState('repeat', 'up'), cmdData(
+      'execute if score ' + t + ' ' + SUMMON_T + '.. unless entity @e[type=minecart,tag=' + tag + '] run summon minecart ' +
+      '~ ~' + plain(dy) + ' ~ {Tags:["' + tag + '"],CustomName:"Track test",CustomNameVisible:1b}', true));
+    var park = at(last, ys[last]), info = { code: code, axis: axis, lo: lo, hi: hi, check: check, tb: tb, summon: at(0, yb), dy: dy, park: park };
+    if (axis !== 'y') {
+      put(at(last, yb), cmdState('repeat', 'up'), cmdData('execute if score ' + t + ' ' + tb + ' run setblock ~ ~' + (ys[last] - yb) + ' ~ air', true));
+      put(at(last, yb - 1), cmdState('repeat', 'up'), cmdData(
+        'execute if score ' + t + ' 10 run clone ~ ~-2 ~ ~ ~-2 ~ ~ ~' + (ys[last] - (yb - 1)) + ' ~', true));
+      var pr = taken[park.join(',')];
+      put(at(last, yb - 3), { name: pr.name, props: pr.props });
+      put(at(last, yb - 4), { name: GLASS, props: {} });
+      put(at(last + 1, yb - 3), { name: GLASS, props: {} });
+    }
+    var sideFacing = FACING_NAME[f.lu + ',' + f.lv], back = FACING_NAME[(0 - f.du) + ',' + (0 - f.dv)];
+    var reset = ['gamerule commandBlockOutput false', 'gamerule command_block_output false',
+      'scoreboard objectives add ' + obj + ' dummy', 'scoreboard players set #t ' + obj + ' 0'];
+    var y0 = ys[0], s;
+    for (s = 0; s < reset.length; s++) put(at(-3, y0, s), cmdState(s === 0 ? 'impulse' : 'chain', sideFacing), cmdData(reset[s], true));
+    for (s = 0; s < reset.length; s++) put(at(-5, y0, s), cmdState(s === 0 ? 'impulse' : 'chain', sideFacing), cmdData(reset[s], s > 0));
+    put(at(-6, y0, 0), { name: 'minecraft:stone_button', props: { face: 'wall', facing: back, powered: 'false' } });
+    put(at(-6, y0, 1), { name: SIGN, props: { facing: back, waterlogged: 'false' } },
+      signData(['Track test', 'Press button', 'to test again', 'Results in chat']));
+
+    var rt = rangeText(lo, hi);
+    var what = { y: 'y fraction', x: 'x fraction after the drop', z: 'z fraction after the drop' }[axis];
+    var secs = Math.floor((check + 14) / 20);
+    var lines = [
+      'execute unless score ' + t + ' ' + limit + '.. run scoreboard players add #t ' + obj + ' 1',
+      'execute if score ' + t + ' 1 run tellraw @a {"text":"Track test: the cart goes in 3 seconds, results in about ' + secs + ' seconds.","color":"gray"}',
+      'execute if score ' + t + ' 8 as @e[type=minecart,tag=' + tag + '] at @s run fill ~ ~2 ~ ~ ~2 ~ air replace #minecraft:wool',
+      'execute if score ' + t + ' 10 run tp @e[type=minecart,tag=' + tag + '] ~ -400 ~'
+    ];
+    var sel = 'execute if score ' + t + ' ' + check + ' as @e[type=minecart,tag=' + tag + '] at @s', a, c, ta, tc;
+    if (axis === 'y') {
+      a = lo + HEIGHT; c = hi - 1.0;
+      ta = 'align y positioned ~ ~' + plain(a) + ' ~ if entity @s[dx=0,dy=0,dz=0]';
+      tc = 'align y positioned ~ ~' + plain(c) + ' ~ if entity @s[dx=0,dy=0,dz=0]';
+    } else {
+      a = lo + HALF_W; c = hi - HALF_W - 1.0;
+      if (axis === 'x') {
+        ta = 'align x positioned ~' + plain(a) + ' ~ ~ if entity @s[dx=0,dy=0,dz=0]';
+        tc = 'align x positioned ~' + plain(c) + ' ~ ~ if entity @s[dx=0,dy=0,dz=0]';
+      } else {
+        ta = 'align z positioned ~ ~ ~' + plain(a) + ' if entity @s[dx=0,dy=0,dz=0]';
+        tc = 'align z positioned ~ ~ ~' + plain(c) + ' if entity @s[dx=0,dy=0,dz=0]';
+      }
+    }
+    if (lo <= hi) lines.push(sel + ' ' + ta + ' at @s ' + tc + ' run tag @s add ' + ptag);
+    else { lines.push(sel + ' ' + ta + ' run tag @s add ' + ptag); lines.push(sel + ' ' + tc + ' run tag @s add ' + ptag); }
+    if (axis === 'y') lines.push(sel + ' positioned ~ ~' + TOP + ' ~ align y if entity @s[dx=0,dy=0,dz=0] positioned ~ ~' + F1E5 + ' ~ ' +
+      'unless entity @s[dx=0,dy=0,dz=0] run tag @s add ' + ftag);
+    info.a = a; info.c = c;
+    lines.push('execute if score ' + t + ' ' + (check + 1) + ' as @e[type=minecart,tag=' + tag + '] at @s run fill ~ ~2 ~ ~ ~2 ~ air replace #minecraft:wool');
+    lines.push('execute if score ' + t + ' ' + (check + 2) + ' if entity @e[type=minecart,tag=' + ptag + '] run tellraw @a ["",{"text":"Track test: ","bold":true},' +
+      '{"text":"PASS","bold":true,"color":"green"},{"text":" - the cart\'s ' + what + ' is ' + rt + '."}]');
+    lines.push('execute if score ' + t + ' ' + (check + 2) + ' unless entity @e[type=minecart,tag=' + ptag + '] run tellraw @a ["",{"text":"Track test: ","bold":true},' +
+      '{"text":"FAIL","bold":true,"color":"red"},{"text":" - the cart\'s ' + what + ' is not ' + rt + '."}]');
+    lines.push('execute if score ' + t + ' ' + (check + 2) + ' as @e[type=minecart,tag=' + ptag + '] at @s run setblock ~ ~2 ~ lime_wool keep');
+    lines.push('execute if score ' + t + ' ' + (check + 2) + ' as @e[type=minecart,tag=' + tag + ',tag=!' + ptag + '] at @s run setblock ~ ~2 ~ red_wool keep');
+    if (axis === 'y') {
+      lines.push('execute if score ' + t + ' ' + (check + 3) + ' if entity @e[type=minecart,tag=' + ftag + '] run tellraw @a {"text":"It is a floatcart.","color":"green"}');
+      lines.push('execute if score ' + t + ' ' + (check + 3) + ' unless entity @e[type=minecart,tag=' + ftag + '] run tellraw @a {"text":"It is not a floatcart.","color":"gray"}');
+    }
+    lines.push('execute if score ' + t + ' ' + (check + 4) + ' run tellraw @a ["",{"text":"Exact cart position [x, y, z]: ","color":"gray"},' +
+      '{"entity":"@e[type=minecart,tag=' + tag + ',limit=1]","nbt":"Pos"}]');
+    for (var k = 0; k < lines.length; k++) put(at(k, yb, 2), cmdState('repeat', 'up'), cmdData(lines[k], true));
+    info.lines = lines; info.secs = secs;
+    return { blocks: list, tes: tes, info: info, startRail: at(0, ys[0]) };
+  }
+
+  // The tests as the commands make them, on a cart at (x, y, z) (as tester.verdict)
+  function boxHit(cmin, cmax, bmin) { return cmin < bmin + 1.0 && cmax > bmin; }
+  function verdict(info, x, y, z) {
+    var ha, hc, b, v;
+    if (info.axis === 'y') { b = Math.floor(y); ha = boxHit(y, y + HEIGHT, b + info.a); hc = boxHit(y, y + HEIGHT, b + info.c); }
+    else {
+      v = info.axis === 'x' ? x : z; b = Math.floor(v);
+      ha = boxHit(v - HALF_W, v + HALF_W, b + info.a); hc = boxHit(v - HALF_W, v + HALF_W, b + info.c);
+    }
+    var top = Math.floor(y + Number(TOP));
+    return { passed: info.lo <= info.hi ? ha && hc : ha || hc,
+             floatcart: boxHit(y, y + HEIGHT, top) && !boxHit(y, y + HEIGHT, top + Number(F1E5)) };
+  }
+  function description(code, axis, lo, hi, check) {
+    var what = { y: 'its y fraction', x: 'its x fraction after the parking rail is removed', z: 'its z fraction after the parking rail is removed' }[axis];
+    return 'Track found by the minecart alignment finder (created by 07km), with an automatic test. ' +
+      'Paste it in a creative world with commands allowed: command blocks put a minecart on the start rail, ' +
+      'and about ' + Math.floor((check + 14) / 20) + ' seconds after the paste the chat says whether ' + what + ' is ' +
+      rangeText(lo, hi) + ', with the exact position. The button behind the start runs it again. Layout code: ' + code + '. Minecraft Java 26.2.';
+  }
+  // The whole file: uncompressed NBT bytes, plus what the test should report when the start
+  // rail is where it was built (the run, the drop for x / z, and the verdict).
+  function file(code, startRail, facing, axis, lo, hi, uid, nowMs) {
+    var start = E.parse(code).start;
+    var origin = start === 'S' ? startRail : [startRail[0], startRail[1] + 1, startRail[2]];
+    var r = E.run(code, origin, facing, false, 20000);
+    if (!r.ok) throw new Error('the cart does not park on this track');
+    var tt = build(code, startRail, facing, axis, lo, hi, uid, r.ticks);
+    var enc = LW.encode(tt.blocks, 'Cart track test ' + code, '07km', description(code, axis, lo, hi, tt.info.check), nowMs, tt.tes);
+    var y = axis === 'y' ? r.y : E.dropY(code, origin, facing, r);
+    return { bytes: enc.bytes, offset: enc.offset, size: enc.size, info: tt.info, startRail: tt.startRail,
+             end: [r.x, y, r.z], expect: verdict(tt.info, r.x, y, r.z) };
+  }
+  return { build: build, verdict: verdict, file: file, plain: plain, description: description, SUMMON_T: SUMMON_T };
+}
+</script>
+<script>
+/* 3D view of one track: the WebGL renderer from floatcart-makers-3d.html, blocks only.
+   makeViewer3D() builds one canvas that is moved into whichever result is open; load()
+   rebuilds the scene from the block list E.build() returns, with the cart where it stops
+   (and a dashed box where it lands when the parking rail is broken). No run animation. */
+function makeViewer3D() {
+  /* ---------- small math ---------- */
+  function hex(h, a) {
+    h = String(h).trim().replace('#', '');
+    if (h.length === 3) h = h.split('').map(function (c) { return c + c; }).join('');
+    var n = parseInt(h, 16);
+    return [((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255, a == null ? 1 : a];
+  }
+  function shade(c, k, a) { return [c[0] * k, c[1] * k, c[2] * k, a == null ? c[3] : a]; }
+  function vsub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function vdot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function vcross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function vnorm(a) { var l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+  function ident() { var m = new Float32Array(16); m[0] = m[5] = m[10] = m[15] = 1; return m; }
+  function mmul(a, b) {
+    var m = new Float32Array(16);
+    for (var c = 0; c < 4; c++) for (var r = 0; r < 4; r++) {
+      m[c * 4 + r] = a[r] * b[c * 4] + a[4 + r] * b[c * 4 + 1] + a[8 + r] * b[c * 4 + 2] + a[12 + r] * b[c * 4 + 3];
+    }
+    return m;
+  }
+  function chain() { var m = arguments[0]; for (var i = 1; i < arguments.length; i++) m = mmul(m, arguments[i]); return m; }
+  function T(x, y, z) { var m = ident(); m[12] = x; m[13] = y; m[14] = z; return m; }
+  function SC(x, y, z) { var m = ident(); m[0] = x; m[5] = y; m[10] = z; return m; }
+  function RX(a) { var m = ident(), c = Math.cos(a), s = Math.sin(a); m[5] = c; m[6] = s; m[9] = -s; m[10] = c; return m; }
+  function RZ(a) { var m = ident(), c = Math.cos(a), s = Math.sin(a); m[0] = c; m[1] = s; m[4] = -s; m[5] = c; return m; }
+  function boxM(mn, sz) { return chain(T(mn[0], mn[1], mn[2]), SC(sz[0], sz[1], sz[2])); }
+  function persp(fovy, asp, n, f) {
+    var t = 1 / Math.tan(fovy / 2), m = new Float32Array(16);
+    m[0] = t / asp; m[5] = t; m[10] = (f + n) / (n - f); m[11] = -1; m[14] = 2 * f * n / (n - f);
+    return m;
+  }
+  function lookAt(e, c, up) {
+    var z = vnorm(vsub(e, c)), x = vnorm(vcross(up, z)), y = vcross(z, x), m = ident();
+    m[0] = x[0]; m[4] = x[1]; m[8] = x[2]; m[1] = y[0]; m[5] = y[1]; m[9] = y[2]; m[2] = z[0]; m[6] = z[1]; m[10] = z[2];
+    m[12] = -vdot(x, e); m[13] = -vdot(y, e); m[14] = -vdot(z, e);
+    return { m: m, x: x, y: y, z: z };
+  }
+  function normalMat(m) {
+    var n = new Float32Array(9);
+    n[0] = m[0]; n[1] = m[1]; n[2] = m[2]; n[3] = m[4]; n[4] = m[5]; n[5] = m[6]; n[6] = m[8]; n[7] = m[9]; n[8] = m[10];
+    return n;
+  }
+  function xf(m, p) {
+    return [m[0] * p[0] + m[4] * p[1] + m[8] * p[2] + m[12], m[1] * p[0] + m[5] * p[1] + m[9] * p[2] + m[13],
+            m[2] * p[0] + m[6] * p[1] + m[10] * p[2] + m[14]];
+  }
+  function aabbOf(m) {
+    var b = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+    for (var i = 0; i < 8; i++) {
+      var p = xf(m, [i & 1, (i >> 1) & 1, (i >> 2) & 1]);
+      for (var k = 0; k < 3; k++) { b[k] = Math.min(b[k], p[k]); b[k + 3] = Math.max(b[k + 3], p[k]); }
+    }
+    return b;
+  }
+
+  /* ---------- DOM ---------- */
+  var el = document.createElement('div');
+  el.className = 'gl3d';
+  el.innerHTML = '<canvas tabindex="0" aria-label="3D view of the track. Drag to turn, scroll to zoom."></canvas>' +
+    '<div class="gl-bar"><span class="gl-hint">drag to turn · scroll to zoom</span>' +
+    '<button type="button" class="btn sm gl-reset">Reset view</button></div>' +
+    '<div class="gl-none" hidden>This browser could not start WebGL, so the 3D view is unavailable.</div>';
+  var canvas = el.querySelector('canvas');
+  var gl = null;
+  try {
+    gl = canvas.getContext('webgl', { antialias: true, alpha: false, preserveDrawingBuffer: true });
+  } catch (e) { gl = null; }
+  if (!gl) {
+    el.querySelector('.gl-none').hidden = false;
+    canvas.hidden = true;
+    return { el: el, ok: false, load: function () {}, onTheme: function () {}, snapshot: function () { return null; } };
+  }
+
+  /* ---------- programs and buffers ---------- */
+  var VS = 'attribute vec3 aPos;attribute vec3 aNrm;uniform mat4 uPV;uniform mat4 uM;uniform mat3 uN;varying vec3 vN;' +
+           'void main(){vN=uN*aNrm;gl_Position=uPV*uM*vec4(aPos,1.0);}';
+  var FS = 'precision mediump float;uniform vec4 uColor;varying vec3 vN;' +
+           'void main(){vec3 n=normalize(vN);float l=0.62*n.x*n.x+0.82*n.z*n.z+(n.y>0.0?1.0:0.5)*n.y*n.y;' +
+           'gl_FragColor=vec4(uColor.rgb*l,uColor.a);}';
+  var LVS = 'attribute vec3 aPos;uniform mat4 uPV;uniform mat4 uM;void main(){gl_Position=uPV*uM*vec4(aPos,1.0);}';
+  var LFS = 'precision mediump float;uniform vec4 uColor;void main(){gl_FragColor=uColor;}';
+  function shader(type, src) {
+    var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  }
+  function program(vs, fs) {
+    var p = gl.createProgram();
+    gl.attachShader(p, shader(gl.VERTEX_SHADER, vs)); gl.attachShader(p, shader(gl.FRAGMENT_SHADER, fs));
+    gl.linkProgram(p);
+    if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+    return p;
+  }
+  var PM = program(VS, FS), PL = program(LVS, LFS);
+  var AM = { aPos: gl.getAttribLocation(PM, 'aPos'), aNrm: gl.getAttribLocation(PM, 'aNrm'), uPV: gl.getUniformLocation(PM, 'uPV'),
+             uM: gl.getUniformLocation(PM, 'uM'), uN: gl.getUniformLocation(PM, 'uN'), uColor: gl.getUniformLocation(PM, 'uColor') };
+  var AL = { aPos: gl.getAttribLocation(PL, 'aPos'), uPV: gl.getUniformLocation(PL, 'uPV'), uM: gl.getUniformLocation(PL, 'uM'),
+             uColor: gl.getUniformLocation(PL, 'uColor') };
+  function vbo(arr) { var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); return b; }
+  var FACES = [
+    [[1, 0, 0], [[1, 0, 0], [1, 1, 0], [1, 1, 1], [1, 0, 1]]],
+    [[-1, 0, 0], [[0, 0, 0], [0, 0, 1], [0, 1, 1], [0, 1, 0]]],
+    [[0, 1, 0], [[0, 1, 0], [0, 1, 1], [1, 1, 1], [1, 1, 0]]],
+    [[0, -1, 0], [[0, 0, 0], [1, 0, 0], [1, 0, 1], [0, 0, 1]]],
+    [[0, 0, 1], [[0, 0, 1], [1, 0, 1], [1, 1, 1], [0, 1, 1]]],
+    [[0, 0, -1], [[0, 0, 0], [0, 1, 0], [1, 1, 0], [1, 0, 0]]]];
+  var cv = [], ci = [];
+  FACES.forEach(function (f, i) {
+    f[1].forEach(function (v) { cv.push(v[0], v[1], v[2], f[0][0], f[0][1], f[0][2]); });
+    var b = i * 4; ci.push(b, b + 1, b + 2, b, b + 2, b + 3);
+  });
+  var cubeVB = vbo(new Float32Array(cv));
+  var cubeIB = gl.createBuffer();
+  gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIB);
+  gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(ci), gl.STATIC_DRAW);
+  var ev = [];
+  [[0, 1], [2, 3], [4, 5], [6, 7], [0, 2], [1, 3], [4, 6], [5, 7], [0, 4], [1, 5], [2, 6], [3, 7]].forEach(function (e) {
+    e.forEach(function (i) { ev.push(i & 1, (i >> 1) & 1, (i >> 2) & 1); });
+  });
+  var EDGES = { b: vbo(new Float32Array(ev)), n: 24 }, GRID = null;
+
+  /* ---------- theme ---------- */
+  var TH = {};
+  function readTheme() {
+    var cs = getComputedStyle(document.documentElement);
+    function g(n, d) { return (cs.getPropertyValue(n) || '').trim() || d; }
+    TH.scene = hex(g('--scene', '#eef1f4'));
+    TH.grid = hex(g('--grid', '#c6ccd3'), 0.9);
+    TH.glassEdge = hex(g('--glass', '#8fb3cf'), 0.85);
+    TH.cart = hex(g('--accent', '#2a64c9'));
+    TH.dark = (TH.scene[0] + TH.scene[1] + TH.scene[2]) < 1.2;
+    if (cart) paintCart();
+    dirty = true; kick();
+  }
+
+  /* ---------- scene ---------- */
+  var C = {
+    glass: '#ffffff', concrete: '#dde2e4', tie: '#6b5236', gold: '#e6bd3a', goldOff: '#8a7434',
+    iron: '#a7abb0', lit: '#ec3b2a', unlit: '#4f2320', lever: '#6c6c6c', stick: '#7a5431', axle: '#3b3f44',
+    bud: '#9b5fd6', boat: '#a9743e', boatTrim: '#7d5124'
+  };
+  // amethyst buds: how far they stick out of the face they grow on, and how wide they are (C11)
+  var BUDS = { small_amethyst_bud: [3, 8], medium_amethyst_bud: [4, 10], large_amethyst_bud: [5, 10], amethyst_cluster: [7, 10] };
+  var objs = [], fitPts = [];
+  function add(m, col, o) {
+    o = o || {};
+    var ob = { m: m, nm: normalMat(m), col: col, edge: o.edge || null, trans: col[3] < 1, bias: o.bias || 0, aabb: aabbOf(m) };
+    objs.push(ob); return ob;
+  }
+  function setM(ob, m) { ob.m = m; ob.nm = normalMat(m); ob.aabb = aabbOf(m); }
+  function darkEdge(col) { return shade(col, 0.55, 0.75); }
+  function addBlock(b, off) {
+    var x = b.x - off[0], y = b.y - off[1], z = b.z - off[2];
+    var name = String(b.name).replace('minecraft:', ''), pr = b.props || {};
+    function P(mn, sz, col, o) {
+      o = o || {};
+      if (o.edge === undefined) o.edge = darkEdge(col);
+      return add(boxM([x + mn[0], y + mn[1], z + mn[2]], sz), col, o);
+    }
+    switch (name) {
+      case 'white_stained_glass': P([0, 0, 0], [1, 1, 1], hex(C.glass, 0.13), { edge: 'glass' }); break;
+      case 'white_concrete': P([0, 0, 0], [1, 1, 1], hex(C.concrete)); break;
+      case 'lever':
+        P(leverPad(pr.facing), leverPadSize(pr.facing), hex(C.lever));
+        add(leverM(x, y, z, pr.facing, pr.powered === 'true'), hex(C.stick), { edge: null });
+        break;
+      case 'small_amethyst_bud': case 'medium_amethyst_bud': case 'large_amethyst_bud': case 'amethyst_cluster':
+        var bd = budBox(name, pr.facing || 'up');
+        P([bd[0], bd[1], bd[2]], [bd[3] - bd[0], bd[4] - bd[1], bd[5] - bd[2]], hex(C.bud));
+        break;
+      case 'rail': case 'powered_rail':
+        rail(x, y, z, pr.shape || 'north_south', name, pr.powered === 'true');
+        break;
+      default: P([0, 0, 0], [1, 1, 1], hex('#ff00ff'));
+    }
+    fitPts.push([x, y, z], [x + 1, y + 1, z + 1]);
+  }
+  // the bud's box, turned the way it grows: it fills `height`/16 out of the face it is on
+  // and is `width`/16 across, centred (the same rule as physics.py's _bud_box)
+  function budBox(name, facing) {
+    var d = BUDS[name], h = d[0] / 16, w = d[1] / 16, lo = 0.5 - w / 2, hi = 0.5 + w / 2;
+    switch (facing) {
+      case 'north': return [lo, lo, 1 - h, hi, hi, 1];
+      case 'south': return [lo, lo, 0, hi, hi, h];
+      case 'west': return [1 - h, lo, lo, 1, hi, hi];
+      case 'east': return [0, lo, lo, h, hi, hi];
+      case 'down': return [lo, 1 - h, lo, hi, 1, hi];
+      default: return [lo, 0, lo, hi, h, hi];
+    }
+  }
+  function RY(a) { var m = ident(), c = Math.cos(a), s = Math.sin(a); m[0] = c; m[2] = -s; m[8] = s; m[10] = c; return m; }
+  // A wall lever points away from the block it hangs on, so its plate sits on the -facing side.
+  function leverDir(facing) {
+    return facing === 'north' ? [0, -1] : facing === 'south' ? [0, 1] : facing === 'west' ? [-1, 0] : [1, 0];
+  }
+  function leverPad(facing) {
+    var d = leverDir(facing);
+    return [d[0] > 0 ? 0 : d[0] < 0 ? 0.8125 : 0.3125, 0.25, d[1] > 0 ? 0 : d[1] < 0 ? 0.8125 : 0.3125];
+  }
+  function leverPadSize(facing) {
+    var d = leverDir(facing);
+    return [d[0] ? 0.1875 : 0.375, 0.5, d[1] ? 0.1875 : 0.375];
+  }
+  var YAW = { '1,0': 0, '-1,0': Math.PI, '0,1': -Math.PI / 2, '0,-1': Math.PI / 2 };
+  function leverM(x, y, z, facing, on) {
+    var d = leverDir(facing);
+    return chain(T(x + 0.5 - d[0] * 0.3125, y + 0.5, z + 0.5 - d[1] * 0.3125), RY(YAW[d[0] + ',' + d[1]]),
+                 RZ(on ? -0.75 : 0.75), T(0, -0.04, -0.04), SC(0.56, 0.08, 0.08));
+  }
+  // The rail is built with the track along local z and turned a quarter turn for east-west rails.
+  function rail(x, y, z, shape, kind, powered) {
+    var asc = shape.indexOf('ascending') === 0;
+    var ew = shape === 'east_west' || shape === 'ascending_east' || shape === 'ascending_west';
+    var L = asc ? Math.SQRT2 : 1;
+    var base = T(x + 0.5, y + (asc ? 0.5 : 0), z + 0.5);
+    if (ew) base = chain(base, RY(Math.PI / 2));
+    if (asc) base = chain(base, RX(shape === 'ascending_south' || shape === 'ascending_east' ? -Math.PI / 4 : Math.PI / 4));
+    function B(mn, sz, col) { return add(chain(base, boxM(mn, sz)), col, { edge: null }); }
+    var n = asc ? 6 : 4;
+    for (var i = 0; i < n; i++) { var zc = -L / 2 + (i + 0.5) * L / n; B([-0.42, 0, zc - 0.065], [0.84, 0.03, 0.13], hex(C.tie)); }
+    var metal = kind === 'powered_rail' ? (powered ? C.gold : C.goldOff) : C.iron;
+    B([-0.34, 0.03, -L / 2], [0.08, 0.04, L], hex(metal));
+    B([0.26, 0.03, -L / 2], [0.08, 0.04, L], hex(metal));
+    if (kind === 'powered_rail') B([-0.04, 0.02, -L / 2 + 0.04], [0.08, 0.025, L - 0.08], hex(powered ? C.lit : C.unlit));
+  }
+
+  /* ---------- the cart where it stops ---------- */
+  var HW = 0.49000000953674316, HH = 0.699999988079071;
+  var CART = [
+    [[-0.4, 0.12, -0.49], [0.8, 0.06, 0.98], 'b'], [[-0.4, 0.12, -0.49], [0.06, 0.5, 0.98], 'b'],
+    [[0.34, 0.12, -0.49], [0.06, 0.5, 0.98], 'b'], [[-0.34, 0.12, -0.49], [0.68, 0.5, 0.06], 'b'],
+    [[-0.34, 0.12, 0.43], [0.68, 0.5, 0.06], 'b'], [[-0.44, 0.03, -0.33], [0.88, 0.09, 0.1], 'a'],
+    [[-0.44, 0.03, 0.23], [0.88, 0.09, 0.1], 'a']];
+  var cart = null, dropBox = null, boat = null;
+  var BOAT_W = 1.375, BOAT_H = 0.5625;                       // EntityTypes: every boat and raft
+  function makeBoat(p) {
+    var col = hex(C.boat), trim = hex(C.boatTrim);
+    add(boxM([p[0] - BOAT_W / 2, p[1], p[2] - BOAT_W / 2], [BOAT_W, 0.1, BOAT_W]), col, { edge: darkEdge(col) });
+    add(boxM([p[0] - BOAT_W / 2, p[1] + 0.1, p[2] - BOAT_W / 2], [BOAT_W, BOAT_H - 0.1, 0.12]), trim, { edge: darkEdge(trim) });
+    add(boxM([p[0] - BOAT_W / 2, p[1] + 0.1, p[2] + BOAT_W / 2 - 0.12], [BOAT_W, BOAT_H - 0.1, 0.12]), trim, { edge: darkEdge(trim) });
+    add(boxM([p[0] - BOAT_W / 2, p[1] + 0.1, p[2] - BOAT_W / 2], [0.12, BOAT_H - 0.1, BOAT_W]), trim, { edge: darkEdge(trim) });
+    add(boxM([p[0] + BOAT_W / 2 - 0.12, p[1] + 0.1, p[2] - BOAT_W / 2], [0.12, BOAT_H - 0.1, BOAT_W]), trim, { edge: darkEdge(trim) });
+    fitPts.push([p[0] - BOAT_W / 2, p[1], p[2] - BOAT_W / 2], [p[0] + BOAT_W / 2, p[1] + BOAT_H, p[2] + BOAT_W / 2]);
+    return true;
+  }
+  function makeCart(p) {
+    var c = { parts: [], hit: null };
+    CART.forEach(function (q) {
+      var ob = add(ident(), [0, 0, 0, 1], { edge: null });
+      ob.local = q; ob.cart = true; c.parts.push(ob);
+    });
+    c.hit = boxM([p[0] - HW, p[1], p[2] - HW], [2 * HW, HH, 2 * HW]);
+    c.parts.forEach(function (ob) { setM(ob, chain(T(p[0], p[1], p[2]), boxM(ob.local[0], ob.local[1]))); });
+    return c;
+  }
+  function paintCart() {
+    if (!cart) return;
+    cart.parts.forEach(function (ob) {
+      var col = ob.local[2] === 'a' ? hex(C.axle) : TH.cart.slice();
+      ob.col = col; ob.edge = darkEdge(col);
+    });
+  }
+
+  /* ---------- camera ---------- */
+  var cam = { target: [0, 0, 0], az: 1.12, el: 0.34, r: 20, fov: 0.62 }, HOME = null;
+  var cssW = 1, cssH = 1, measured = false, view = null, eyeP = [0, 0, 0], PV = ident();
+  // Distance from the target that keeps every point of the build in front of the camera.
+  function safeR(target) {
+    var far = 0;
+    fitPts.forEach(function (p) { far = Math.max(far, Math.hypot(p[0] - target[0], p[1] - target[1], p[2] - target[2])); });
+    return far * 1.15 + 1;
+  }
+  function fitHome() {
+    if (!fitPts.length) return;
+    var asp = cssW / cssH, th = Math.tan(cam.fov / 2), bb = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+    fitPts.forEach(function (p) { for (var q = 0; q < 3; q++) { bb[q] = Math.min(bb[q], p[q]); bb[q + 3] = Math.max(bb[q + 3], p[q]); } });
+    var centre = [(bb[0] + bb[3]) / 2, (bb[1] + bb[4]) / 2, (bb[2] + bb[5]) / 2];
+    // start far enough out that the whole build is in view, then tighten
+    var rad = safeR(centre);
+    var h = { target: centre, az: 1.12, el: 0.34, r: Math.max(rad, (rad - 1) / 1.15 / Math.min(th, th * asp)) };
+    var mx = asp < 0.8 ? 0.84 : 0.88, my = asp < 0.8 ? 0.8 : 0.86;
+    for (var it = 0; it < 8; it++) {
+      var ce = Math.cos(h.el);
+      var eye = [h.target[0] + h.r * ce * Math.sin(h.az), h.target[1] + h.r * Math.sin(h.el), h.target[2] + h.r * ce * Math.cos(h.az)];
+      var L = lookAt(eye, h.target, [0, 1, 0]), M = mmul(persp(cam.fov, asp, 0.1, 400), L.m);
+      var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+      for (var i = 0; i < fitPts.length; i++) {
+        var p = fitPts[i];
+        var cx = M[0] * p[0] + M[4] * p[1] + M[8] * p[2] + M[12], cy = M[1] * p[0] + M[5] * p[1] + M[9] * p[2] + M[13],
+            cw = M[3] * p[0] + M[7] * p[1] + M[11] * p[2] + M[15];
+        x0 = Math.min(x0, cx / cw); x1 = Math.max(x1, cx / cw); y0 = Math.min(y0, cy / cw); y1 = Math.max(y1, cy / cw);
+      }
+      var ox = (x0 + x1) / 2, oy = (y0 + y1) / 2, k = Math.max((x1 - x0) / 2 / mx, (y1 - y0) / 2 / my);
+      for (var j = 0; j < 3; j++) h.target[j] += L.x[j] * ox * h.r * th * asp + L.y[j] * oy * h.r * th;
+      h.r = Math.max(safeR(h.target), Math.min(200, h.r * k));   // never close enough to cut the build
+    }
+    HOME = h;
+  }
+  function resetView() { if (!HOME) return; cam.target = HOME.target.slice(); cam.az = HOME.az; cam.el = HOME.el; cam.r = HOME.r; dirty = true; kick(); }
+  function computeCam() {
+    var ce = Math.cos(cam.el);
+    eyeP = [cam.target[0] + cam.r * ce * Math.sin(cam.az), cam.target[1] + cam.r * Math.sin(cam.el), cam.target[2] + cam.r * ce * Math.cos(cam.az)];
+    view = lookAt(eyeP, cam.target, [0, 1, 0]);
+    PV = mmul(persp(cam.fov, cssW / cssH, 0.1, 400), view.m);
+  }
+  function orbit(dx, dy) { cam.az -= dx * 0.0085; cam.el = Math.max(-0.4, Math.min(1.5, cam.el + dy * 0.0085)); }
+  function pan(dx, dy) {
+    var k = 2 * cam.r * Math.tan(cam.fov / 2) / cssH;
+    for (var i = 0; i < 3; i++) cam.target[i] += (-dx * view.x[i] + dy * view.y[i]) * k;
+  }
+  function zoom(f) { cam.r = Math.max(2, Math.min(120, cam.r * f)); }
+  function resize() {
+    var r = el.getBoundingClientRect(), dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (!r.width || !r.height) return;
+    cssW = Math.max(1, r.width); cssH = Math.max(1, r.height - 34);
+    canvas.width = Math.round(cssW * dpr); canvas.height = Math.round(cssH * dpr);
+    canvas.style.width = cssW + 'px'; canvas.style.height = cssH + 'px';
+    var first = !measured; measured = true;
+    fitHome(); if (first || !started) resetView();
+    dirty = true; kick();
+  }
+  if (window.ResizeObserver) new ResizeObserver(resize).observe(el);
+  else window.addEventListener('resize', resize);
+
+  /* ---------- input ---------- */
+  var ptrs = new Map(), pinch = null;
+  function pinchInfo() {
+    var a = Array.from(ptrs.values());
+    return { d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) || 1, cx: (a[0].x + a[1].x) / 2, cy: (a[0].y + a[1].y) / 2 };
+  }
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY, btn: e.button, mod: e.shiftKey || e.ctrlKey || e.metaKey });
+    if (ptrs.size === 2) pinch = pinchInfo();
+    canvas.classList.add('dragging');
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    var p = ptrs.get(e.pointerId);
+    if (!p) return;
+    var dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+    if (ptrs.size === 1) { if (p.btn === 1 || p.btn === 2 || p.mod) pan(dx, dy); else orbit(dx, dy); }
+    else if (ptrs.size === 2) { var q = pinchInfo(); if (pinch) { zoom(pinch.d / q.d); pan(q.cx - pinch.cx, q.cy - pinch.cy); } pinch = q; }
+    dirty = true; kick();
+  });
+  function up(e) { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; if (!ptrs.size) canvas.classList.remove('dragging'); }
+  canvas.addEventListener('pointerup', up);
+  canvas.addEventListener('pointercancel', up);
+  canvas.addEventListener('wheel', function (e) { e.preventDefault(); zoom(Math.exp(e.deltaY * (e.deltaMode ? 0.05 : 0.0012))); dirty = true; kick(); }, { passive: false });
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('dblclick', resetView);
+  el.querySelector('.gl-reset').addEventListener('click', function (e) { e.stopPropagation(); resetView(); });
+
+  /* ---------- draw loop ---------- */
+  var dirty = true, raf = 0, started = false;
+  function kick() { if (!raf && started) raf = requestAnimationFrame(function () { raf = 0; if (dirty) { draw(); dirty = false; } }); }
+  function useMesh() {
+    gl.useProgram(PM);
+    gl.bindBuffer(gl.ARRAY_BUFFER, cubeVB);
+    gl.enableVertexAttribArray(AM.aPos); gl.vertexAttribPointer(AM.aPos, 3, gl.FLOAT, false, 24, 0);
+    gl.enableVertexAttribArray(AM.aNrm); gl.vertexAttribPointer(AM.aNrm, 3, gl.FLOAT, false, 24, 12);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIB);
+    gl.uniformMatrix4fv(AM.uPV, false, PV);
+  }
+  function mesh(o) {
+    gl.uniformMatrix4fv(AM.uM, false, o.m); gl.uniformMatrix3fv(AM.uN, false, o.nm); gl.uniform4fv(AM.uColor, o.col);
+    gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
+  }
+  var curLB = null;
+  function useLines() { gl.useProgram(PL); gl.disableVertexAttribArray(AM.aNrm); gl.uniformMatrix4fv(AL.uPV, false, PV); curLB = null; }
+  function lines(L, m, col, mode) {
+    if (curLB !== L.b) { gl.bindBuffer(gl.ARRAY_BUFFER, L.b); gl.enableVertexAttribArray(AL.aPos); gl.vertexAttribPointer(AL.aPos, 3, gl.FLOAT, false, 12, 0); curLB = L.b; }
+    gl.uniformMatrix4fv(AL.uM, false, m); gl.uniform4fv(AL.uColor, col);
+    gl.drawArrays(mode || gl.LINES, 0, L.n);
+  }
+  function edgeCol(o) { return o.edge === 'glass' ? TH.glassEdge : o.edge; }
+  var ID = ident();
+  function draw() {
+    computeCam();
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    gl.clearColor(TH.scene[0], TH.scene[1], TH.scene[2], 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LEQUAL); gl.depthMask(true);
+    gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+    var opaque = [], trans = [];
+    objs.forEach(function (o) { (o.trans ? trans : opaque).push(o); });
+    useMesh(); opaque.forEach(mesh);
+    useLines();
+    if (GRID) lines(GRID, ID, TH.grid);
+    opaque.forEach(function (o) { if (o.edge) lines(EDGES, o.m, edgeCol(o)); });
+    if (cart) lines(EDGES, cart.hit, TH.cart.slice(0, 3).concat([1]));
+    if (dropBox) lines(EDGES, dropBox, TH.cart.slice(0, 3).concat([0.7]));
+    trans.forEach(function (o) {
+      var c = [(o.aabb[0] + o.aabb[3]) / 2, (o.aabb[1] + o.aabb[4]) / 2, (o.aabb[2] + o.aabb[5]) / 2];
+      o.dist = Math.hypot(c[0] - eyeP[0], c[1] - eyeP[1], c[2] - eyeP[2]) + o.bias;
+    });
+    trans.sort(function (a, b) { return b.dist - a.dist; });
+    gl.depthMask(false);
+    useMesh(); trans.forEach(mesh);
+    useLines();
+    trans.forEach(function (o) { if (o.edge) lines(EDGES, o.m, edgeCol(o)); });
+    gl.disable(gl.DEPTH_TEST);
+    if (cart) lines(EDGES, cart.hit, TH.cart.slice(0, 3).concat([0.4]));
+    if (dropBox) lines(EDGES, dropBox, TH.cart.slice(0, 3).concat([0.3]));
+    gl.enable(gl.DEPTH_TEST); gl.depthMask(true);
+  }
+
+  /* ---------- api ---------- */
+  function buildGrid(bd) {
+    var x0 = bd[0] - 1, x1 = bd[3] + 1, z0 = bd[2] - 1, z1 = bd[5] + 1, gy = bd[1], grid = [];
+    fitPts.push([x0, gy, z0], [x1, gy, z1]);                       // the grid is part of the picture
+    for (var gx = x0; gx <= x1; gx++) grid.push(gx, gy, z0, gx, gy, z1);
+    for (var gz = z0; gz <= z1; gz++) grid.push(x0, gy, gz, x1, gy, gz);
+    if (GRID) gl.deleteBuffer(GRID.b);
+    GRID = { b: vbo(new Float32Array(grid)), n: grid.length / 3 };
+  }
+  var api = {
+    el: el,
+    ok: true,
+    // blocks: the list E.build() gives (world coordinates). cartPos: [x, y, z] where it stops.
+    // dropTo: the y it falls to when the parking rail is broken, or null.
+    load: function (blocks, cartPos, dropTo, boatPos) {
+      objs.length = 0; fitPts.length = 0; cart = null; dropBox = null; boat = null;
+      var off = [1e18, 1e18, 1e18];
+      blocks.forEach(function (b) { off[0] = Math.min(off[0], b.x); off[1] = Math.min(off[1], b.y); off[2] = Math.min(off[2], b.z); });
+      blocks.forEach(function (b) { addBlock(b, off); });
+      if (boatPos) boat = makeBoat([boatPos[0] - off[0], boatPos[1] - off[1], boatPos[2] - off[2]]);
+      var bd = [1e9, 1e9, 1e9, -1e9, -1e9, -1e9];
+      fitPts.forEach(function (p) { for (var q = 0; q < 3; q++) { bd[q] = Math.min(bd[q], p[q]); bd[q + 3] = Math.max(bd[q + 3], p[q]); } });
+      buildGrid(bd);
+      if (cartPos) {
+        var p = [cartPos[0] - off[0], cartPos[1] - off[1], cartPos[2] - off[2]];
+        cart = makeCart(p); paintCart();
+        fitPts.push([p[0] - HW, p[1], p[2] - HW], [p[0] + HW, p[1] + HH, p[2] + HW]);
+        if (dropTo !== null && dropTo !== undefined && dropTo !== cartPos[1]) {
+          var dy = dropTo - off[1];
+          dropBox = boxM([p[0] - HW, dy, p[2] - HW], [2 * HW, HH, 2 * HW]);
+          fitPts.push([p[0] - HW, dy, p[2] - HW]);
+        }
+      }
+      started = true;
+      measured = false;
+      resize();
+      fitHome(); resetView();
+      dirty = true; kick();
+    },
+    // a still picture of the current view, so a result keeps its 3D view when the canvas moves on
+    snapshot: function () {
+      if (!started) return null;
+      draw(); dirty = false;
+      try { return canvas.toDataURL('image/png'); } catch (e) { return null; }
+    },
+    onTheme: readTheme,
+    resize: resize,
+    // for the page checks: the camera the fit chose and what it was fitted to
+    debug: function () { return { cssW: cssW, cssH: cssH, pts: fitPts.length, home: HOME && { r: HOME.r, target: HOME.target }, cam: { r: cam.r, target: cam.target } }; }
+  };
+  readTheme();
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', readTheme); else if (mq.addListener) mq.addListener(readTheme);
+  }
+  new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  return api;
+}
+</script>
+<script>
+(function () {
+  'use strict';
+  var E = makeEngine(), LW = makeLitematicWriter(), TS = makeTester(E, LW);
+  var root = document.documentElement;
+  function $(id) { return document.getElementById(id); }
+  function each(sel, fn) { Array.prototype.forEach.call(document.querySelectorAll(sel), fn); }
+
+  /* ---------- theme: follows the system until clicked, shared with the other pages ---------- */
+  var KEY = 'floatcart-rules-theme', themeBtn = $('theme');
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function syncTheme() {
+    var dark = isDark();
+    themeBtn.querySelector('.label').textContent = dark ? 'Light mode' : 'Dark mode';
+    themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    themeBtn.setAttribute('aria-pressed', String(dark));
+  }
+  themeBtn.addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem(KEY, next); } catch (e) { /* ignore */ }
+    syncTheme();
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', syncTheme);
+  }
+  window.addEventListener('storage', function (e) {
+    if (e.key === KEY && (e.newValue === 'light' || e.newValue === 'dark')) { root.setAttribute('data-theme', e.newValue); syncTheme(); }
+  });
+  syncTheme();
+
+  /* ---------- search sizes (tracks tried at 0 64 0 facing south, counted in advance) ---------- */
+  var SIZES = [
+    { name: 'Quick', dry: 6, plain: 12 },
+    { name: 'Normal', dry: 7, plain: 14 },
+    { name: 'Deep', dry: 8, plain: 16 },
+    { name: 'Very deep', dry: 9, plain: 18 },
+    { name: 'Extreme', dry: 10, plain: 20 }
+  ];
+  var TOTALS = {"dry":{"6":102025,"7":533263,"8":2791725,"9":14651124,"10":76907893},"plain":{"12":37651,"14":177261,"16":841403,"18":4017049,"20":19267385}};
+  var RATE = { dry: 90000, plain: 36000 };          // rough tracks per second per core, for the estimate
+  var CORES = Math.max(1, Math.min(16, navigator.hardwareConcurrency || 4));
+  var WINDOW = ['0.3000000120', '0.3000100119'];   // floatcart window as y fractions, rounded inwards
+
+  function jobsFor(rails, size) {
+    var s = SIZES[size], jobs = [];
+    if (rails === 'any') jobs.push({ alphabet: 'dry', starts: ['S', 'Dr', 'Dp'], depth: s.dry, split: s.dry >= 9 ? 3 : 2, minMid: 0 });
+    // with any rails, the long plain tracks only add what the first search can't reach
+    jobs.push({ alphabet: 'plain', starts: ['Dr'], depth: s.plain, split: s.plain >= 18 ? 4 : 3, minMid: rails === 'any' ? s.dry + 1 : 0 });
+    return jobs;
+  }
+  function fmtCount(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + ' million';
+    if (n >= 1e4) return Math.round(n / 1e3) + ' thousand';
+    return String(n);
+  }
+  function fmtTime(s) {
+    if (s < 1.5) return 'about a second';
+    if (s < 60) return 'about ' + Math.round(s) + ' seconds';
+    if (s < 3600) return 'about ' + Math.round(s / 60) + ' minute' + (Math.round(s / 60) === 1 ? '' : 's');
+    return 'about ' + (s / 3600).toFixed(1) + ' hours';
+  }
+  function choice(name) { return document.querySelector('input[name="' + name + '"]:checked').value; }
+  function sizeHint() {
+    var rails = choice('rails'), size = +choice('size'), s = SIZES[size], n = 0, secs = 0;
+    jobsFor(rails, size).forEach(function (j) { var t = TOTALS[j.alphabet][j.depth]; n += t; secs += t / RATE[j.alphabet]; });
+    var blocked = workerMode === 'none', cores = blocked ? 1 : CORES;
+    secs /= cores;
+    var len = rails === 'any'
+      ? 'Every track of up to ' + (s.dry + 2) + ' rails, and redstone-free tracks of up to ' + (s.plain + 2) + '.'
+      : 'Every redstone-free track of up to ' + (s.plain + 2) + ' rails.';
+    $('sizeHint').textContent = len + ' About ' + fmtCount(n) + ' tracks: ' + fmtTime(secs) + ' on ' + cores + ' core' + (cores === 1 ? '' : 's') + '.' +
+      (blocked ? ' This browser doesn\'t allow background workers here, so the search runs on the page itself, on one core.' +
+        ' Some browsers only allow them on a website, so on GitHub Pages it may use all ' + CORES + '.' : '');
+  }
+  each('input[name="rails"], input[name="size"]', function (el) { el.addEventListener('change', sizeHint); });
+
+  /* ---------- boat carts ----------
+     A cart that carries a boat cannot be placed by hand, so the page adds a fixed loading
+     run in front of the track: the cart rolls down it, picks the boat up and stops dead
+     against the stopper, always in the same spot. Breaking the glass under it drops it onto
+     the start rail, at rest, at the fraction below. mcredstone/boat_prefab.py checks that in
+     the full simulator; the search then runs with the two passenger factors. */
+  function syncCart() {
+    var boat = choice('cart') === 'boat', st = $('stopper').value, facing = $('facing').value;
+    $('stopBox').hidden = !boat;
+    $('cartHint').textContent = boat
+      ? 'The download comes with the loading run: put the boat where it marks, place a plain minecart on its slope, ' +
+        'let it stop against the ' + (st === 'block' ? 'block' : 'amethyst') + ', then break the glass under the cart. ' +
+        'It drops onto the start rail at ' + facing[0].toUpperCase() + facing.slice(1).toLowerCase() +
+        ' fraction ' + E.boatFrac(st, facing).toFixed(10) + ', at rest. With a rider every move is 0.75 \u00d7 the speed ' +
+        'and the cart keeps 99.7% of it each tick, so these tracks are not the empty-cart ones.'
+      : 'A plain minecart placed by hand on the start rail, as in the maker schematics.';
+  }
+  each('input[name="cart"]', function (el) { el.addEventListener('change', syncCart); });
+  $('stopper').addEventListener('change', syncCart);
+
+  /* ---------- reading the settings ---------- */
+  function num(s) {
+    s = String(s).trim().replace(',', '.');
+    if (!/^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s)) return NaN;
+    return Number(s);
+  }
+  function frac(v) { return v - Math.floor(v); }
+  function intIn(el, lo, hi) {
+    var v = num(el.value);
+    var ok = isFinite(v) && Math.floor(v) === v && v >= lo && v <= hi;
+    el.classList.toggle('bad', !ok);
+    return ok ? v : null;
+  }
+  // What to aim for: y on the rail, or x / z after breaking the parking rail. x needs a
+  // track running east or west, z one running north or south.
+  function syncAxis() {
+    var axis = choice('axis'), sel = $('facing');
+    Array.prototype.forEach.call(sel.options, function (o) {
+      var along = o.value === 'east' || o.value === 'west' ? 'x' : 'z';
+      o.disabled = axis !== 'y' && along !== axis;
+    });
+    if (sel.options[sel.selectedIndex].disabled) sel.value = axis === 'x' ? 'east' : 'south';
+    $('axisHint').textContent = axis === 'y'
+      ? 'The cart\'s height as it sits on the parking slope once the run is over. A floatcart needs 0.3000000120 to 0.3000100119.'
+      : 'Once the run is over, break the parking rail: the cart drops straight down and its ' + axis + ' stays exactly the same. ' +
+        'The track runs ' + sel.value + ' (' + (axis === 'x' ? 'east or west' : 'north or south') + ' only; see Build position).';
+    readPos();
+    readTarget();
+    syncCart();
+  }
+  function syncMode() {
+    var range = choice('mode') === 'range';
+    $('valueBox').hidden = range;
+    $('rangeBox').hidden = !range;
+    readTarget();
+  }
+  // The target as a range [lo, hi] of fractions (wrapping past 1 when lo > hi), its middle
+  // and half-width w. "One value" is the range value +- tolerance.
+  function readTarget() {
+    var hint = $('targetHint'), axis = choice('axis');
+    ['target', 'tol', 'lo', 'hi'].forEach(function (id) { $(id).classList.remove('bad'); });
+    hint.classList.remove('err');
+    function bad(id, msg) { $(id).classList.add('bad'); hint.classList.add('err'); hint.textContent = msg; return null; }
+    if (choice('mode') === 'value') {
+      var v = num($('target').value), tol = num($('tol').value);
+      if (!isFinite(v)) return bad('target', 'Type a number, such as 0.3 or 64.3000050119.');
+      if (!(isFinite(tol) && tol >= 0 && tol < 0.5)) return bad('tol', 'The ± part must be a number from 0 to 0.5.');
+      var c = frac(v);
+      hint.textContent = (v !== c ? 'Using the fraction ' + c.toFixed(10) + '. ' : '') + 'The part of the cart\'s ' + axis +
+        ' after the decimal point. The closest tracks are listed; those within ±' + tol + ' count as matches.';
+      return { mode: 'value', target: c, lo: frac(c - tol), hi: frac(c + tol), w: tol };
+    }
+    var a = num($('lo').value), b = num($('hi').value);
+    if (!isFinite(a)) return bad('lo', 'Type a number, such as 0.3.');
+    if (!isFinite(b)) return bad('hi', 'Type a number, such as 0.31.');
+    if (Math.abs(b - a) >= 1) return bad('hi', 'The range must be less than one block wide.');
+    var lo = frac(a), hi = frac(b), w = lo <= hi ? (hi - lo) / 2 : (hi + 1 - lo) / 2;
+    hint.textContent = (lo <= hi
+      ? 'Tracks whose ' + axis + ' fraction lands anywhere from ' + lo.toFixed(10) + ' to ' + hi.toFixed(10) + ' count as matches. '
+      : 'The range wraps past 1: fractions from ' + lo.toFixed(10) + ' up to 1, and from 0 to ' + hi.toFixed(10) + '. ') +
+      '"Closest first" lists the ones nearest its middle first.';
+    return { mode: 'range', target: frac(lo + w), lo: lo, hi: hi, w: w };
+  }
+  function readPos() {
+    var x = intIn($('px'), -29999984, 29999984), y = intIn($('py'), -64, 318), z = intIn($('pz'), -29999984, 29999984);
+    var facing = $('facing').value, ok = x !== null && y !== null && z !== null;
+    $('posHint').classList.toggle('err', !ok);
+    $('posHint').textContent = ok
+      ? 'The block of the rail you place the cart on. The last digits of the cart\'s position depend on where the track is, so results are exact for this spot.'
+      : 'X and Z must be whole numbers inside the world border, Y a whole number from -64 to 318.';
+    if (!ok) { $('posBox').open = true; return null; }
+    $('posSum').textContent = x + ' ' + y + ' ' + z + ', track running ' + facing;
+    return { p: [x, y, z], facing: facing };
+  }
+  function readAll() {
+    var tg = readTarget(), pos = readPos();
+    if (!tg || !pos) return null;
+    var boat = choice('cart') === 'boat';
+    return { axis: choice('axis'), mode: tg.mode, target: tg.target, lo: tg.lo, hi: tg.hi, w: tg.w,
+             pos: pos.p, facing: pos.facing, rails: choice('rails'), size: +choice('size'), keep: +$('keep').value,
+             sort: $('sort').value, boat: boat, stopper: boat ? $('stopper').value : null };
+  }
+  each('input[name="axis"]', function (el) { el.addEventListener('change', syncAxis); });
+  each('input[name="mode"]', function (el) { el.addEventListener('change', syncMode); });
+  ['px', 'py', 'pz', 'facing'].forEach(function (id) { $(id).addEventListener('change', function () { readPos(); syncAxis(); }); });
+  ['target', 'tol', 'lo', 'hi'].forEach(function (id) { $(id).addEventListener('change', readTarget); });
+  $('presetFloat').addEventListener('click', function () {
+    document.querySelector('input[name="axis"][value="y"]').checked = true;
+    document.querySelector('input[name="mode"][value="range"]').checked = true;
+    $('lo').value = WINDOW[0]; $('hi').value = WINDOW[1];
+    syncAxis(); syncMode();
+  });
+
+  // The engine's origin is the level a track is entered at: a flat start rail sits on it,
+  // a slope start one block below. Users give the block of the start rail.
+  function originFor(start, p) { return start === 'S' ? [p[0], p[1], p[2]] : [p[0], p[1] + 1, p[2]]; }
+  function startOf(code) { return String(code).trim().split(/\s+/)[0]; }
+  function axisValue(r, axis) { return axis === 'x' ? r.x : axis === 'z' ? r.z : r.y; }
+
+  /* ---------- formatting ---------- */
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function fmtFrac(v) { return frac(v).toFixed(10); }
+  function fmtDist(d) {
+    if (d === 0) return '0';
+    var a = Math.abs(d), s = d < 0 ? '−' : '';
+    if (a < 1e-3) { var e = a.toExponential(1).split('e'); return s + e[0] + 'e' + e[1].replace('+', ''); }
+    return s + a.toFixed(4);
+  }
+  function fmtInt(n) { return n.toLocaleString('en-US'); }
+  function tokensHTML(code) {
+    var t = code.split(' ');
+    return '<span class="code" aria-label="' + esc(code) + '">' + t.map(function (x, i) {
+      var cls = x === 'E' ? 'e' : x === 'S' || x[1] === 'p' ? 'p' : x[1] === 'h' ? 'h' : '';
+      if (i === 0) cls += ' st';
+      return '<span class="tok ' + cls + '" aria-hidden="true">' + esc(x) + '</span>';
+    }).join('') + '</span>';
+  }
+  function railCount(code) { return code.split(' ').length; }
+  // "Off by" (one value) or "inside by" (a range; negative when outside)
+  function offText(r, st) { return st.mode === 'range' ? fmtDist(st.w - r.dist) : fmtDist(r.dist); }
+  function targetText(st) {
+    return st.mode === 'range' ? 'from ' + st.lo.toFixed(10) + ' to ' + st.hi.toFixed(10) : 'within ±' + st.w + ' of ' + st.target.toFixed(10);
+  }
+
+  /* ---------- search ---------- */
+  // Background workers are tried when the page loads, from a blob: URL and then a data: URL.
+  // A browser may refuse them (a security policy, or a page opened straight from a file), and
+  // it reports that a moment later rather than at once. With no workers, or if one stops
+  // during a search, the search carries on here on the page, one part at a time.
+  var S = null;                                  // the search in progress or last finished
+  var workerMode = null, workerURLs = {}, probeWaiters = [];   // null while checking, then 'blob', 'data' or 'none'
+  function workerMain() {
+    var E = makeEngine();
+    self.onmessage = function (e) {
+      var m = e.data;
+      try {
+        var r = E.searchTask({ boat: m.boat, stopper: m.stopper, facing: m.facing, alphabet: m.task.alphabet, depth: m.task.depth, origin: m.origin,
+          start: m.task.start, first: m.task.first, minMid: m.task.minMid, axis: m.axis, target: m.target, lo: m.lo, hi: m.hi,
+          sort: m.sort, keep: m.keep,
+          progress: function (st) { self.postMessage({ id: m.id, type: 'progress', nodes: st.nodes }); } });
+        self.postMessage({ id: m.id, type: 'done', top: r.top, stats: r.stats });
+      } catch (err) {
+        self.postMessage({ id: m.id, type: 'error', message: String((err && err.message) || err) });
+      }
+    };
+    self.postMessage({ type: 'ready' });
+  }
+  function workerURL(kind) {
+    if (!workerURLs[kind]) {
+      var src = makeEngine.toString() + '\n(' + workerMain.toString() + ')();';
+      workerURLs[kind] = kind === 'blob' ? URL.createObjectURL(new Blob([src], { type: 'text/javascript' }))
+        : 'data:text/javascript;charset=utf-8,' + encodeURIComponent(src);
+    }
+    return workerURLs[kind];
+  }
+  function probeWorkers(kinds) {
+    if (!kinds.length) { probed('none'); return; }
+    var w = null, timer = null, over = false;
+    function end(ok) {
+      if (over) return;
+      over = true;
+      clearTimeout(timer);
+      try { if (w) w.terminate(); } catch (e) { /* ignore */ }
+      if (ok) probed(kinds[0]); else probeWorkers(kinds.slice(1));
+    }
+    try { w = new Worker(workerURL(kinds[0])); } catch (e) { end(false); return; }
+    w.onmessage = function (e) { if (e.data && e.data.type === 'ready') end(true); };
+    w.onerror = function (e) { if (e && e.preventDefault) e.preventDefault(); end(false); };
+    timer = setTimeout(function () { end(false); }, 6000);
+  }
+  function probed(mode) {
+    workerMode = mode;
+    sizeHint();
+    var waiting = probeWaiters;
+    probeWaiters = [];
+    waiting.forEach(function (f) { f(); });
+  }
+
+  function cmp(a, b) { return a.score - b.score || railCount(a.code) - railCount(b.code) || (a.code < b.code ? -1 : a.code > b.code ? 1 : 0); }
+  function merge(top, list, keep) {
+    var by = {};
+    top.concat(list).forEach(function (r) { if (!by[r.code] || cmp(r, by[r.code]) < 0) by[r.code] = r; });
+    return Object.keys(by).map(function (k) { return by[k]; }).sort(cmp).slice(0, keep);
+  }
+
+  function start() {
+    var st = readAll();
+    if (!st) { $('status').textContent = 'Fix the highlighted setting first.'; return; }
+    if (workerMode === null) {                     // still finding out whether workers run here
+      $('status').textContent = 'Starting…';
+      probeWaiters = [start];
+      return;
+    }
+    stop(true);
+    var tasks = [], total = 0;
+    jobsFor(st.rails, st.size).forEach(function (j) {
+      total += TOTALS[j.alphabet][j.depth];
+      E.makeTasks(j.alphabet, j.starts, j.depth, j.split).forEach(function (t) { t.minMid = j.minMid; tasks.push(t); });
+    });
+    S = { st: st, tasks: tasks, next: 0, done: 0, total: total, nodes: 0, parked: 0, inside: 0, floats: 0,
+          live: {}, top: [], t0: performance.now(), slots: [], retry: [], mainThread: null,
+          running: true, stopped: false, error: null, opened: {} };
+    $('go').disabled = true; $('stop').disabled = false;
+    $('prog').hidden = false; $('results').hidden = false;
+    $('status').textContent = 'Searching…';
+    renderRows(true);
+    if (workerMode !== 'none') {
+      for (var i = 0, n = Math.min(CORES, tasks.length); i < n; i++) {
+        var slot = spawn(S);
+        if (slot) S.slots.push(slot);
+      }
+    }
+    if (!S.slots.length) runHere(S, 'blocked');
+    S.timer = setInterval(function () { progress(S); }, 250);
+  }
+  function spawn(s) {
+    var slot = { w: null, id: -1, ready: false };
+    try { slot.w = new Worker(workerURL(workerMode)); } catch (e) { return null; }
+    slot.w.onmessage = function (e) {
+      if (s !== S || !s.running) return;
+      var m = e.data;
+      if (m.type === 'ready') { slot.ready = true; dispatch(s, slot); return; }
+      if (m.type === 'progress') { s.live[m.id] = m.nodes; return; }
+      if (m.type === 'error') { s.error = m.message; finish(s); return; }
+      delete s.live[m.id];
+      slot.id = -1;
+      absorb(s, m.top, m.stats);
+      dispatch(s, slot);
+    };
+    slot.w.onerror = function (e) {
+      if (e && e.preventDefault) e.preventDefault();
+      if (s === S && s.running) fallBack(s, slot.ready ? 'stopped' : 'blocked');
+    };
+    return slot;
+  }
+  function taskMsg(s, id) {
+    var t = s.tasks[id], st = s.st;
+    return { id: id, task: t, facing: st.facing, origin: originFor(t.start, st.pos), axis: st.axis, target: st.target,
+             lo: st.lo, hi: st.hi, sort: st.sort, keep: st.keep, boat: st.boat, stopper: st.stopper };
+  }
+  function dispatch(s, slot) {
+    if (s.next >= s.tasks.length) {
+      if (s.done === s.tasks.length) finish(s);
+      return;
+    }
+    slot.id = s.next++;
+    slot.w.postMessage(taskMsg(s, slot.id));
+  }
+  function absorb(s, top, stats) {
+    s.done++;
+    s.nodes += stats.nodes; s.parked += stats.parked; s.inside += stats.inside; s.floats += stats.floats;
+    if (top.length) { s.top = merge(s.top, top, s.st.keep); s.dirty = true; }
+  }
+  // Workers refused or stopped: the parts they held go back in the queue and the search
+  // carries on here. Nothing they sent for those parts has been counted yet.
+  function fallBack(s, why) {
+    if (s.mainThread) return;
+    if (why === 'blocked') { workerMode = 'none'; sizeHint(); }
+    s.slots.forEach(function (sl) { if (sl.id >= 0) s.retry.push(sl.id); });
+    killWorkers(s);
+    s.live = {};
+    runHere(s, why);
+  }
+  function runHere(s, why) {
+    s.mainThread = why;
+    setTimeout(function () { mainThreadStep(s); }, 0);
+  }
+  function mainThreadStep(s) {
+    if (s !== S || !s.running) return;
+    var t0 = performance.now();
+    while ((s.retry.length || s.next < s.tasks.length) && performance.now() - t0 < 40) {
+      var m = taskMsg(s, s.retry.length ? s.retry.shift() : s.next++);
+      var r = E.searchTask({ boat: m.boat, stopper: m.stopper, facing: m.facing, alphabet: m.task.alphabet, depth: m.task.depth, origin: m.origin,
+        start: m.task.start, first: m.task.first, minMid: m.task.minMid, axis: m.axis, target: m.target, lo: m.lo, hi: m.hi,
+        sort: m.sort, keep: m.keep });
+      absorb(s, r.top, r.stats);
+    }
+    if (s.done === s.tasks.length) finish(s); else setTimeout(function () { mainThreadStep(s); }, 0);
+  }
+  function killWorkers(s) {
+    s.slots.forEach(function (sl) { try { sl.w.terminate(); } catch (e) { /* ignore */ } });
+    s.slots = [];
+  }
+  function stop(silent) {
+    if (!S || !S.running) return;
+    S.running = false; S.stopped = !silent;
+    killWorkers(S);
+    clearInterval(S.timer);
+    if (!silent) finish(S, true);
+  }
+  function finish(s, stopped) {
+    if (s.finished) return;
+    s.finished = true; s.running = false;
+    killWorkers(s);
+    clearInterval(s.timer);
+    s.secs = (performance.now() - s.t0) / 1000;
+    $('go').disabled = false; $('stop').disabled = true;
+    $('prog').hidden = true;
+    $('status').textContent = s.error ? 'The search failed: ' + s.error : stopped ? 'Stopped.' :
+      'Done in ' + s.secs.toFixed(1) + ' s' + (s.mainThread ? ' on one core' : '') + '.';
+    renderRows(true);
+  }
+  function progress(s) {
+    if (s !== S || !s.running) return;
+    var live = 0;
+    for (var k in s.live) live += s.live[k];
+    var done = s.nodes + live, secs = (performance.now() - s.t0) / 1000;
+    var pct = Math.min(99.5, 100 * done / Math.max(1, s.total));
+    $('bar').style.width = pct.toFixed(1) + '%';
+    $('barBox').setAttribute('aria-valuenow', String(Math.round(pct)));
+    var rate = done / Math.max(0.05, secs), left = (s.total - done) / Math.max(1, rate);
+    $('progText').textContent = Math.floor(pct) + '% · ' + fmtCount(done) + ' of about ' + fmtCount(s.total) + ' tracks · ' +
+      secs.toFixed(1) + ' s' + (secs > 1.5 && left > 0.5 ? ' · ' + fmtTime(left) + ' left' : '') +
+      (s.mainThread === 'blocked' ? ' · on one core: this browser blocked background workers here'
+        : s.mainThread === 'stopped' ? ' · on one core: a background worker stopped'
+        : ' · ' + s.slots.length + ' worker' + (s.slots.length === 1 ? '' : 's'));
+    if (s.dirty) renderRows(false);
+  }
+  $('go').addEventListener('click', start);
+  $('stop').addEventListener('click', function () { stop(false); });
+
+  /* ---------- results table ---------- */
+  var lastRender = 0;
+  function renderRows(force) {
+    var s = S;
+    if (!s) return;
+    var now = performance.now();
+    if (!force && now - lastRender < 400) return;
+    lastRender = now; s.dirty = false;
+    var st = s.st, rows = [];
+    $('thVal').textContent = st.axis + ' fraction';
+    $('thOff').textContent = st.mode === 'range' ? 'Inside by' : 'Off by';
+    if (!s.top.length) rows.push('<tr><td colspan="7" class="empty">' + (s.running ? 'Searching…' : 'No track parked.') + '</td></tr>');
+    s.top.forEach(function (r, i) {
+      var open = !!s.opened[r.code];
+      var badge = r.float && st.axis === 'y' ? '<span class="badge fc" title="Inside the floatcart window at this build position">floatcart</span>'
+        : r.inside ? '<span class="badge in">' + (st.mode === 'range' ? 'in range' : 'match') + '</span>' : '';
+      rows.push('<tr class="r' + (open ? ' open' : '') + '" data-code="' + esc(r.code) + '">' +
+        '<td class="n">' + (i + 1) + '</td>' +
+        '<td class="lay">' + tokensHTML(r.code) + '</td>' +
+        '<td class="yf"><span class="mono">' + fmtFrac(axisValue(r, st.axis)) + '</span>' + badge + '</td>' +
+        '<td class="num off mono' + (st.mode === 'range' && !r.inside ? ' miss' : '') + '" data-lab="' + (st.mode === 'range' ? 'inside by ' : 'off by ') + '">' + offText(r, st) + '</td>' +
+        '<td class="num rails">' + railCount(r.code) + '</td>' +
+        '<td class="num levers">' + leversOf(r.code, st) + '</td>' +
+        '<td class="more"><button type="button" class="btn sm" aria-expanded="' + open + '">' + (open ? 'Hide' : 'Details') + '</button></td></tr>');
+      if (open) rows.push('<tr class="detail"><td colspan="7">' + detailHTML(r.code, st) + '</td></tr>');
+    });
+    snapCurrent();
+    $('rows').innerHTML = rows.join('');
+    syncViewer();
+    var sum;
+    if (s.running) sum = 'Searching: ' + fmtInt(s.done) + ' of ' + fmtInt(s.tasks.length) + ' parts done. The list fills in as parts finish.';
+    else {
+      sum = (s.stopped ? 'Stopped after ' : 'Tried ') + fmtInt(s.nodes) + ' tracks in ' + s.secs.toFixed(1) + ' s; ' + fmtInt(s.parked) + ' parked the cart. ' +
+        fmtInt(s.inside) + ' landed ' + targetText(st) + (st.axis === 'y' ? ', and ' + fmtInt(s.floats) + ' made a floatcart. ' : '. ') +
+        (s.top.length ? 'The ' + (st.sort === 'short' ? 'shortest matches, then the closest tracks,' : 'closest ' + s.top.length) + (s.stopped ? ' found so far' : '') +
+          ' are below, for a start rail at ' + st.pos.join(' ') + ' with the track running ' + st.facing + '.' : '');
+    }
+    $('summary').textContent = sum;
+  }
+  var leverCache = {};
+  function leversOf(code, st) {
+    var k = code + '|' + st.facing + '|' + (st.boat ? st.stopper : '');
+    if (!(k in leverCache)) leverCache[k] = E.build(code, originFor(startOf(code), st.pos), st.facing, opts(st)).levers;
+    return leverCache[k];
+  }
+  $('rows').addEventListener('click', function (e) {
+    var tr = e.target.closest ? e.target.closest('tr.r') : null;
+    if (!tr || !S) return;
+    var code = tr.getAttribute('data-code');
+    S.opened[code] = !S.opened[code];
+    renderRows(true);
+  });
+  $('rows').addEventListener('click', actionClick);
+  $('checkOut').addEventListener('click', actionClick);
+
+  /* ---------- one track in detail ---------- */
+  var detailCache = {}, verifyCache = {};
+  function stKey(st) { return [st.pos.join(','), st.facing, st.axis, st.mode, st.target, st.lo, st.hi,
+                               st.boat ? 'boat-' + st.stopper : 'empty'].join('|'); }
+  // what the engine needs to know about the cart: a boat aboard, and which stopper set it going
+  function opts(st) { return st.boat ? { boat: true, stopper: st.stopper } : null; }
+  function detailHTML(code, st) {
+    var key = code + '|' + stKey(st);
+    if (!detailCache[key]) detailCache[key] = buildDetail(code, st);
+    var v = verifyCache[key];
+    return detailCache[key].replace('@@VERIFY@@', '<p class="verify' + (v ? ' ' + v.cls : '') + '" data-verify="' + esc(code) + '"' + (v ? '>' + v.html : ' hidden>') + '</p>');
+  }
+  function buildDetail(code, st) {
+    var key = code + '|' + stKey(st);
+    var origin = originFor(startOf(code), st.pos);
+    var o = opts(st);
+    var r = E.run(code, origin, st.facing, false, 20000, o);
+    var b = E.build(code, origin, st.facing, o);
+    var h = '<div class="dv">', drop = null;
+    if (!r.ok) {
+      h += '<p class="check-sum">The cart does not park on this track: ' + esc(r.why) + '.</p>';
+    } else {
+      var v = axisValue(r, st.axis), d = E.circDist(v, st.target), inside = E.inRange(frac(v), st.lo, st.hi);
+      drop = E.dropY(code, origin, st.facing, r, o);
+      var rr = { dist: d, inside: inside };
+      h += '<p class="facts"><span>Stops at x <b class="mono">' + r.x + '</b>, y <b class="mono">' + r.y + '</b>, z <b class="mono">' + r.z + '</b></span>' +
+        '<span>' + st.axis + ' fraction <b class="mono">' + fmtFrac(v) + '</b>' +
+          (st.axis === 'y' && E.isFloatcart(r.y) ? '<span class="badge fc">floatcart</span>' : inside ? '<span class="badge in">' + (st.mode === 'range' ? 'in range' : 'match') + '</span>' : '') + '</span>' +
+        '<span>' + (st.mode === 'range' ? 'inside by' : 'off by') + ' <b class="mono">' + offText(rr, st) + '</b></span>' +
+        '<span>parks after <b>' + r.ticks + ' ticks</b> (' + (r.ticks / 20).toFixed(1) + ' s)</span>' +
+        '<span><b>' + b.rails.length + '</b> rails, <b>' + b.levers + '</b> lever' + (b.levers === 1 ? '' : 's') + ', <b>' + b.blocks.length + '</b> blocks</span></p>';
+      h += '<p class="facts drop">' + (drop === Math.floor(drop)
+        ? 'Break the parking rail once it has parked, and the cart drops straight down to <b class="mono">y ' + drop + '</b>; x and z stay exactly the same.'
+        : 'Break the parking rail once it has parked, and the cart stays at <b class="mono">y ' + drop + '</b>: it is less than 0.0003 above the block below, and a move that small is never made (C4). x and z stay the same.') + '</p>';
+      glCache[key] = { blocks: b.blocks, cart: [r.x, r.y, r.z], drop: st.axis === 'y' ? null : drop,
+                       boat: b.loader ? b.loader.boat : null };
+      h += '<div class="glbox" data-gl="' + esc(key) + '"></div>';
+    }
+    h += '<div class="dv-actions">' +
+      '<button type="button" class="btn sm" data-act="copy" data-code="' + esc(code) + '">Copy layout code</button>' +
+      '<button type="button" class="btn sm" data-act="lite" data-code="' + esc(code) + '">Download .litematic</button>' +
+      (r.ok && !st.boat ? '<button type="button" class="btn sm" data-act="tester" data-code="' + esc(code) + '">Download with tester</button>' : '') +
+      '<button type="button" class="btn sm" data-act="verify" data-code="' + esc(code) + '">Check at ' + (st.axis === 'y' ? 60 : 15) + ' positions</button>' +
+      (st.boat ? '<span class="note">The automatic test only covers empty carts so far.</span>' : '') +
+      '<span class="note" data-for="' + esc(code) + '"></span></div>';
+    h += '@@VERIFY@@';
+    h += buildTableHTML(b, st);
+    h += '</div>';
+    return h;
+  }
+
+  function xyz(p) { return p.join(' '); }
+  var SHAPE_WORD = { F: 'flat', U: 'slope up', D: 'slope down' };
+  var RAIL_WORD = { r: 'rail', p: 'powered rail, ON', h: 'powered rail, OFF' };
+  function buildTableHTML(b, st) {
+    var last = b.rails.length - 1, src = {};
+    b.sources.forEach(function (s) { src[s.k] = s; });
+    var rows = b.rails.map(function (rl) {
+      var notes = [];
+      if (rl.k === 0) notes.push(b.loader ? 'the boat cart drops onto this rail' : 'place the cart here');
+      if (rl.k === 0 && b.conductor) notes.push('concrete behind it at ' + xyz(b.conductor.concrete) + ', lever on the concrete\'s ' + b.side + ' side');
+      if (src[rl.k]) notes.push('concrete at ' + xyz(src[rl.k].concrete) + ', lever on its ' + b.side + ' side');
+      else if (rl.kind === 'p' && b.poweredBy[rl.k] !== undefined && b.poweredBy[rl.k] !== rl.k) notes.push('powered through #' + b.poweredBy[rl.k]);
+      if (rl.k === last) notes.push('parking slope: the cart stops here' + (st.axis !== 'y' ? '; break this rail once it has' : ''));
+      return '<tr><td class="k">' + rl.k + '</td><td class="mono">' + xyz(rl.pos) + '</td><td>' + RAIL_WORD[rl.kind] + '</td><td>' +
+        SHAPE_WORD[rl.s] + '</td><td>' + esc(notes.join('; ')) + '</td></tr>';
+    }).join('');
+    var caps = b.caps.map(function (c) { return 'at ' + xyz(c.glass); });
+    var note = 'Glass under every rail. Glass ' + caps.join(' and ') + ', with a plain rail on top of ' + (caps.length > 1 ? 'each' : 'it') +
+      ': the cart never reaches ' + (caps.length > 1 ? 'those rails' : 'that rail') + '; ' + (caps.length > 1 ? 'they make the end slopes' : 'it makes the parking slope') +
+      ' take their shape when placed. The track runs ' + st.facing + ', one block per row.';
+    var extra = '';
+    if (b.loader) {
+      var L = b.loader, st2 = L.stopper === 'small_bud' ? 'small amethyst bud' : L.stopper === 'bud' ? 'amethyst bud (medium, large or cluster)' : 'plain block';
+      extra = '<p class="bnote">Loading run, all plain rails on glass, ' + b.loader.level + ' blocks above the start rail: it runs from ' +
+        xyz(L.start) + ' (a slope down, place the minecart here) to ' + xyz(L.dropRail) + ', straight above the start rail. ' +
+        'The boat goes on the rail at ' + xyz(L.boatRail) + '. The ' + st2 + ' sits at ' + xyz(L.stop) +
+        (L.stopper === 'block' ? '' : ', grown on the block beside it') + '. Once the cart has stopped against it, break the glass at ' +
+        xyz(L.breakGlass) + ': the rail above it pops off and the cart drops onto the start rail.</p>';
+    }
+    return '<div class="build"><table><thead><tr><th>#</th><th>x y z</th><th>Rail</th><th>Shape</th><th>Note</th></tr></thead><tbody>' + rows +
+      '</tbody></table></div><p class="bnote">' + esc(note) + '</p>' + extra;
+  }
+
+  /* ---------- 3D view: one canvas (finder_3d.js), moved into the result that is open ----------
+     A result that had it keeps a still picture; click that picture to turn the track again. */
+  var glCache = {}, snaps = {}, seen = {}, V3 = null, v3Made = false, v3Key = null, v3Box = null;
+  function viewer3() {
+    if (!v3Made) { v3Made = true; try { V3 = makeViewer3D(); } catch (e) { V3 = null; } }
+    return V3;
+  }
+  function snapHTML(k) {
+    return '<img alt="3D view of this track" src="' + snaps[k] + '"><div class="glsnap"><span>click to turn it</span></div>';
+  }
+  function snapCurrent() {
+    if (!V3 || !V3.ok || !v3Key || !v3Box || !v3Box.parentNode) return;
+    var img = V3.snapshot();
+    if (img) snaps[v3Key] = img;
+  }
+  function attachViewer(box) {
+    var v = viewer3(), k = box.getAttribute('data-gl'), d = glCache[k];
+    if (!v || !v.ok || !d) return;
+    var old = v3Box, oldKey = v3Key;
+    if (old && old !== box) snapCurrent();
+    box.innerHTML = '';
+    box.appendChild(v.el);
+    v3Box = box; v3Key = k; seen[k] = true;
+    if (old && old !== box && old.parentNode && snaps[oldKey]) old.innerHTML = snapHTML(oldKey);
+    v.load(d.blocks, d.cart, d.drop, d.boat);
+  }
+  function syncViewer() {
+    var boxes = [];
+    each('.glbox', function (el) { boxes.push(el); });
+    if (!boxes.length) { v3Box = null; return; }
+    var v = viewer3();
+    if (!v || !v.ok) {
+      boxes.forEach(function (b) { b.innerHTML = '<div class="gl-none">This browser could not start WebGL, so the 3D view is unavailable. The build list below still works.</div>'; });
+      return;
+    }
+    var fresh = null, current = null;
+    boxes.forEach(function (b) {
+      var k = b.getAttribute('data-gl');
+      if (k === v3Key) current = b;
+      else if (!seen[k] && !fresh) fresh = b;                       // a result just opened takes the canvas
+    });
+    v3Box = current;
+    boxes.forEach(function (b) {
+      var k = b.getAttribute('data-gl');
+      if (b !== current && !b.firstChild && snaps[k]) b.innerHTML = snapHTML(k);
+    });
+    if (fresh) attachViewer(fresh);
+    else if (!current) attachViewer(boxes[boxes.length - 1]);
+  }
+  function glClick(e) {
+    var box = e.target.closest ? e.target.closest('.glbox') : null;
+    if (!box) return;
+    e.stopPropagation();
+    if (box !== v3Box) attachViewer(box);
+  }
+  $('rows').addEventListener('click', glClick);
+  $('checkOut').addEventListener('click', glClick);
+
+  /* ---------- copy, download, verify ---------- */
+  function note(code, text) {
+    each('.note[data-for]', function (el) { if (el.getAttribute('data-for') === code) el.textContent = text; });
+  }
+  function actionClick(e) {
+    var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
+    if (!btn) return;
+    e.stopPropagation();
+    var code = btn.getAttribute('data-code'), act = btn.getAttribute('data-act');
+    var st = btn.closest('#checkOut') && CHECK ? CHECK : S ? S.st : readAll();
+    if (!st) return;
+    if (act === 'copy') copy(code);
+    else if (act === 'lite') download(code, st);
+    else if (act === 'tester') downloadTester(code, st);
+    else if (act === 'verify') verify(code, st, btn);
+  }
+  function copy(code) {
+    function done() { note(code, 'Copied.'); }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = code; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch (err) { note(code, 'Copy failed: select the code and copy it.'); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, fallback);
+    else fallback();
+  }
+  function download(code, st) {
+    var origin = originFor(startOf(code), st.pos);
+    var o = opts(st);
+    var b = E.build(code, origin, st.facing, o), r = E.run(code, origin, st.facing, false, 20000, o);
+    var start = b.rails[0].pos, where = ' (exact for a start rail at ' + xyz(start) + ', track running ' + st.facing + ')';
+    var what = !r.ok ? 'it does not park'
+      : st.axis === 'y' ? 'it parks at y fraction ' + fmtFrac(r.y) + where
+      : 'it parks, and once the parking rail is broken its ' + st.axis + ' fraction is ' + fmtFrac(axisValue(r, st.axis)) + where;
+    var desc = st.boat
+      ? 'Found by the minecart alignment finder (created by 07km). Put a boat where the schematic marks it, place a plain minecart on the loading slope' +
+        (b.levers ? ' with the levers on' : '') + ', let it take the boat aboard and stop against the ' +
+        (st.stopper === 'block' ? 'block' : 'amethyst') + ', then break the glass under it: the cart drops onto the start rail and ' + what +
+        '. Layout code: ' + code + '. Minecraft Java 26.2.'
+      : 'Found by the minecart alignment finder (created by 07km). Place a plain, empty minecart on the start rail' +
+        (b.levers ? ' with the levers on' : '') + '; ' + what + '. Layout code: ' + code + '. Minecraft Java 26.2.';
+    var enc = LW.encode(b.blocks, 'Cart track ' + code, '07km', desc);
+    var rel = [start[0] - enc.offset[0], start[1] - enc.offset[1], start[2] - enc.offset[2]];
+    var url = URL.createObjectURL(new Blob([LW.gzipStored(enc.bytes)], { type: 'application/octet-stream' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = 'track-' + code.replace(/\s+/g, '-') + '.litematic';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    note(code, 'Saved. In the schematic, the start rail is ' + xyz(rel) + ' from its corner (' + enc.size.join(' × ') + ' blocks).');
+  }
+  // The track plus command blocks that test it by themselves after a paste (finder_tester.js)
+  function uid() {
+    var s = '';
+    for (var i = 0; i < 6; i++) s += '0123456789abcdef'.charAt(Math.floor(Math.random() * 16));
+    return s;
+  }
+  function downloadTester(code, st) {
+    var f;
+    try { f = TS.file(code, st.pos, st.facing, st.axis, st.lo, st.hi, uid()); }
+    catch (err) { note(code, 'No tester: ' + err.message + '.'); return; }
+    var rel = [f.startRail[0] - f.offset[0], f.startRail[1] - f.offset[1], f.startRail[2] - f.offset[2]];
+    var url = URL.createObjectURL(new Blob([LW.gzipStored(f.bytes)], { type: 'application/octet-stream' }));
+    var a = document.createElement('a');
+    a.href = url; a.download = 'track-test-' + code.replace(/\s+/g, '-') + '.litematic';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+    var v = f.end[st.axis === 'x' ? 0 : st.axis === 'z' ? 2 : 1];
+    note(code, 'Saved with an automatic test. Paste it in an open area of a creative world with commands allowed (on a server: op, and ' +
+      'enable-command-block=true). About ' + f.info.secs + ' seconds later the chat shows the result' +
+      (st.axis === 'y' ? '' : ', after the test removes the parking rail') + '. Here it should say ' + (f.expect.passed ? 'PASS' : 'FAIL') +
+      (st.axis === 'y' ? ' and ' + (f.expect.floatcart ? '"It is a floatcart"' : '"It is not a floatcart"') : '') +
+      ' (' + st.axis + ' fraction ' + fmtFrac(v) + '). For exactly these numbers, place it with the start rail at ' + xyz(f.startRail) +
+      ': that rail is ' + xyz(rel) + ' from the schematic\'s corner (' + f.size.join(' × ') + ' blocks).');
+  }
+  function verify(code, st, btn) {
+    btn.disabled = true;
+    note(code, 'Checking…');
+    setTimeout(function () {
+      var v = E.verify(code, { axis: st.axis, target: st.target, lo: st.lo, hi: st.hi, facing: st.facing,
+                               boat: st.boat, stopper: st.stopper });
+      var good = v.parked === v.runs && (st.w === 0 || v.within === v.runs);
+      var txt = v.parked === 0 ? '<b>The cart parked in none of the ' + v.runs + ' runs.</b>' :
+        '<b>' + v.parked + ' of ' + v.runs + '</b> runs parked (15 world positions, out to ±29,999,000, ' +
+        (st.axis === 'y' ? '× 4 directions' : 'track running ' + st.facing) + '). ' + st.axis + ' fraction <span class="mono">' +
+        v.min.toFixed(10) + '</span> to <span class="mono">' + v.max.toFixed(10) + '</span> (spread ' + fmtDist(v.max - v.min) + '). ' +
+        (st.w > 0 ? '<b>' + v.within + ' of ' + v.runs + '</b> ' + (st.mode === 'range' ? 'in the range' : 'within ±' + st.w + ' of the target') + '. ' : '') +
+        (st.axis === 'y' ? '<b>' + v.floatcarts + ' of ' + v.runs + '</b> floatcarts.' : '');
+      verifyCache[code + '|' + stKey(st)] = { html: txt, cls: good ? 'good' : 'bad' };
+      each('[data-verify]', function (el) {
+        if (el.getAttribute('data-verify') !== code) return;
+        el.innerHTML = txt; el.hidden = false; el.className = 'verify ' + (good ? 'good' : 'bad');
+      });
+      note(code, '');
+      btn.disabled = false;
+    }, 20);
+  }
+
+  /* ---------- check a layout ---------- */
+  var CHECK = null;
+  function check() {
+    var code = $('code').value.trim().replace(/\s+/g, ' ');
+    var out = $('checkOut');
+    if (!code) { out.innerHTML = ''; return; }
+    var st = readAll();
+    if (!st) { out.innerHTML = '<p class="hint err">Fix the highlighted setting above first.</p>'; return; }
+    var L;
+    try { L = E.parse(code); } catch (e) { out.innerHTML = '<p class="hint err">' + esc(e.message) + '. Codes start with S, Dr or Dp and end with E.</p>'; return; }
+    var bad = E.problems(L.blocks);
+    if (bad.length) { out.innerHTML = '<p class="hint err">Not buildable: ' + esc(bad.join('; ')) + '.</p>'; return; }
+    CHECK = st;
+    snapCurrent();
+    out.innerHTML = '<p class="check-sum">' + tokensHTML(code) + '</p>' + detailHTML(code, st);
+    syncViewer();
+  }
+  $('checkBtn').addEventListener('click', check);
+  $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); });
+
+  syncAxis(); syncCart(); syncMode(); sizeHint();
+  probeWorkers(['blob', 'data']);
+})();
+</script>
+</body>
+</html>
