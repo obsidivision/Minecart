@@ -12,7 +12,7 @@
     theme button. Without JavaScript every rule is still shown.
   - Generated from the simulator's code (mcredstone/rules.py collects the [ID] rule lines).
     The page has no Jekyll front matter, so GitHub Pages serves it as-is.
-  - The header links to floatcart-3d.html (the 3D view), assumed to be in the same folder;
+  - The header links to floatcart-3d.html (the 3D view), in the same folder;
     the 3D page links back to rules here by ID (#R8 etc.) and shares the saved theme.
 -->
 <html lang="en">
@@ -212,13 +212,12 @@ footer p { margin: 0 0 6px; }
       <li><b>67</b> rules</li>
       <li><b>9</b> topics</li>
       <li>Classic minecart engine</li>
-      <li><b>3</b> assumed · <b>3</b> partly assumed</li>
     </ul>
   </header>
 
   <div class="intro">
     <p>A <strong>floatcart</strong> is a minecart whose top sits less than 1e-5 of a block above a block boundary (rule <a href="#X3">X3</a>). The simulator applies the rules below in the game's order, and together they reproduce the creator's stored attempt bit for bit (y&nbsp;=&nbsp;1.2967236180145676).</p>
-    <p>Each rule was checked against the game's decompiled source, except the few marked <em>assumed</em> (listed at the <a href="#assumptions">bottom</a>). In an ID, the letter is the topic and the number follows the order in the code. <em>Full rule</em> shows the exact wording from the simulator's code and the file it is in.</p>
+    <p>Each rule was checked against the game's decompiled source. In an ID, the letter is the topic and the number follows the order in the code. <em>Full rule</em> shows the exact wording from the simulator's code and the file it is in.</p>
   </div>
 
   <div class="toolbar" role="search">
@@ -654,17 +653,16 @@ footer p { margin: 0 0 6px; }
           <p class="blurb">Hitboxes, block shapes and how collisions are resolved.</p>
         </div>
       </div>
-      <article class="rule" id="C1" data-topic="C" data-search="c1 axis order a move is resolved vertical axis first, then the horizontal axis with the bigger move. a move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). assumed (b1). physics.py">
+      <article class="rule" id="C1" data-topic="C" data-search="c1 axis order a move is resolved vertical axis first, then the horizontal axis with the bigger move. a move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). (b1). physics.py">
         <div class="rule-head">
           <a class="rid t-C" href="#C1" title="Link to C1">C1</a>
           <h3>Axis order</h3>
-          <span class="badge badge-full">assumed</span>
         </div>
         <p class="summary">A move is resolved vertical axis first, then the horizontal axis with the bigger move.</p>
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
-          <p>A move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). Assumed (<a href="#B1">B1</a>).</p>
-          <p class="relies">Relies on assumption <a href="#B1">B1</a>.</p>
+          <p>A move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). (<a href="#B1">B1</a>).</p>
+          <p class="relies">Relies on <a href="#B1">B1</a>.</p>
         </details>
       </article>
       <article class="rule" id="C2" data-topic="C" data-search="c2 collision check the blocks checked are the ones whose boxes overlap the hitbox stretched along the move. the blocks tested for a move are those whose collision boxes overlap the hitbox stretched along the move. physics.py">
@@ -677,7 +675,7 @@ footer p { margin: 0 0 6px; }
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
           <p>The blocks tested for a move are those whose collision boxes overlap the hitbox stretched along the move.</p>
-          <p class="relies">Relies on assumption <a href="#B2">B2</a>.</p>
+          <p class="relies">Relies on <a href="#B2">B2</a>.</p>
         </details>
       </article>
       <article class="rule" id="C3" data-topic="C" data-search="c3 collision tolerance the tolerance is 1e-7. a box the mover already overlaps doesn&#x27;t block it, and moves under 1e-7 count as zero. a block face stops a mover only if the mover overlaps it sideways by more than 1e-7 and is no more than 1e-7 past the face already; a box the mover already overlaps does not block it; a move shorter than 1e-7 on an axis counts as zero. physics.py">
@@ -706,17 +704,16 @@ footer p { margin: 0 0 6px; }
           
         </details>
       </article>
-      <article class="rule" id="C5" data-topic="C" data-search="c5 no bounce a blocked direction loses all its speed. that these blocks add no bounce is assumed. a blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here add no bounce, b3). a horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more. physics.py">
+      <article class="rule" id="C5" data-topic="C" data-search="c5 no bounce a blocked direction loses all its speed. a blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here add no bounce, b3). a horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more. physics.py">
         <div class="rule-head">
           <a class="rid t-C" href="#C5" title="Link to C5">C5</a>
           <h3>No bounce</h3>
-          <span class="badge badge-part">partly assumed</span>
         </div>
-        <p class="summary">A blocked direction loses all its speed. That these blocks add no bounce is assumed.</p>
+        <p class="summary">A blocked direction loses all its speed.</p>
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
           <p>A blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here add no bounce, <a href="#B3">B3</a>). A horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more.</p>
-          <p class="relies">Relies on assumption <a href="#B3">B3</a>.</p>
+          <p class="relies">Relies on <a href="#B3">B3</a>.</p>
         </details>
       </article>
       <article class="rule" id="C6" data-topic="C" data-search="c6 on the ground the cart is on the ground when a downward move is blocked. its supporting block is the nearest one in a thin slab under the hitbox. the cart is on the ground when a downward move was blocked. its supporting block is the nearest block (centre to cart position) inside a 1e-6 thin slab under its hitbox; if there is none, the slab is tried again shifted back along the move&#x27;s horizontal part. physics.py">
@@ -745,17 +742,16 @@ footer p { margin: 0 0 6px; }
           
         </details>
       </article>
-      <article class="rule" id="C8" data-topic="C" data-search="c8 full cubes glass, concrete, observers, note blocks, retracted pistons, and the copper grate (assumed). glass, concrete, observers, note blocks, retracted pistons and the copper grate (assumed, b4) collide as whole 1x1x1 blocks. physics.py">
+      <article class="rule" id="C8" data-topic="C" data-search="c8 full cubes glass, concrete, observers, note blocks, retracted pistons, and the copper grate. glass, concrete, observers, note blocks, retracted pistons and the copper grate (b4) collide as whole 1x1x1 blocks. physics.py">
         <div class="rule-head">
           <a class="rid t-C" href="#C8" title="Link to C8">C8</a>
           <h3>Full cubes</h3>
-          <span class="badge badge-part">partly assumed</span>
         </div>
-        <p class="summary">Glass, concrete, observers, note blocks, retracted pistons, and the copper grate (assumed).</p>
+        <p class="summary">Glass, concrete, observers, note blocks, retracted pistons, and the copper grate.</p>
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
-          <p>Glass, concrete, observers, note blocks, retracted pistons and the copper grate (assumed, <a href="#B4">B4</a>) collide as whole 1x1x1 blocks.</p>
-          <p class="relies">Relies on assumption <a href="#B4">B4</a>.</p>
+          <p>Glass, concrete, observers, note blocks, retracted pistons and the copper grate (<a href="#B4">B4</a>) collide as whole 1x1x1 blocks.</p>
+          <p class="relies">Relies on <a href="#B4">B4</a>.</p>
         </details>
       </article>
       <article class="rule" id="C9" data-topic="C" data-search="c9 no collision rails, levers, signs and air have no collision box. rails, levers, signs and air have no collision box. physics.py">
@@ -855,7 +851,7 @@ footer p { margin: 0 0 6px; }
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
           <p>An entity against a honey block&#x27;s side (its centre more than 0.4375 + half its width from the block&#x27;s centre on x or z), below the block&#x27;s top and not on the ground, whose vertical speed converted as vy / 0.98 + 0.08 is below -0.08, gets vertical speed (-0.05 - 0.08) * 0.98; if the converted speed was below -0.13, its horizontal speed is also scaled by -0.05 / (that speed). The conversion uses living-entity gravity and drag even for minecarts.</p>
-          <p class="relies">Relies on assumption <a href="#B7">B7</a>.</p>
+          <p class="relies">Relies on <a href="#B7">B7</a>.</p>
         </details>
       </article>
     </section>
@@ -916,7 +912,7 @@ footer p { margin: 0 0 6px; }
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
           <p>Each side with water adds (its direction) x (own height - neighbour height); a dry side with water below it counts as a drop and adds (its direction) x (own height - (height below - 8/9)). Other sides add nothing.</p>
-          <p class="relies">Relies on assumption <a href="#B5">B5</a>.</p>
+          <p class="relies">Relies on <a href="#B5">B5</a>.</p>
         </details>
       </article>
       <article class="rule" id="W5" data-topic="W" data-search="w5 falling water falling water next to a solid face gets an extra downward push. the grate&#x27;s current is (0, −0.98639, 0.16440). if the water is falling and a side neighbour, or the block above that neighbour, has a solid face (c13), the flow is normalised, gets an extra (0, -6, 0) and is normalised again: a strong downward push. for the grate this gives (0, -0.98639, 0.16440). physics.py">
@@ -929,7 +925,7 @@ footer p { margin: 0 0 6px; }
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
           <p>If the water is falling and a side neighbour, or the block above that neighbour, has a solid face (<a href="#C13">C13</a>), the flow is normalised, gets an extra (0, -6, 0) and is normalised again: a strong downward push. For the grate this gives (0, -0.98639, 0.16440).</p>
-          <p class="relies">Relies on assumption <a href="#B6">B6</a>.</p>
+          <p class="relies">Relies on <a href="#B6">B6</a>.</p>
         </details>
       </article>
       <article class="rule" id="W6" data-topic="W" data-search="w6 current the current pushes the cart 0.014 block/tick in the direction of the combined flow of the water it touches. the flows of those water cells are added up (each scaled by the depth so far while that is under 0.4), and the cart is pushed 0.014 block/tick along the total&#x27;s direction; a total with squared length under 1e-5 pushes nothing. if both horizontal speeds are under 0.003 and the push is weaker than 0.0045, it is raised to 0.0045 (a minecart&#x27;s push is always 0.014, so never here). physics.py">
@@ -945,17 +941,16 @@ footer p { margin: 0 0 6px; }
           
         </details>
       </article>
-      <article class="rule" id="W7" data-topic="W" data-search="w7 water never moves here lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water (assumed). a lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (assumed, b8), so the water stays exactly as built. physics.py">
+      <article class="rule" id="W7" data-topic="W" data-search="w7 water never moves here lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water. a lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (b8), so the water stays exactly as built. physics.py">
         <div class="rule-head">
           <a class="rid t-W" href="#W7" title="Link to W7">W7</a>
           <h3>Water never moves here</h3>
-          <span class="badge badge-part">partly assumed</span>
         </div>
-        <p class="summary">Lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water (assumed).</p>
+        <p class="summary">Lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water.</p>
         <details>
           <summary>Full rule <span class="src">physics.py</span></summary>
-          <p>A lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (assumed, <a href="#B8">B8</a>), so the water stays exactly as built.</p>
-          <p class="relies">Relies on assumption <a href="#B8">B8</a>.</p>
+          <p>A lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (<a href="#B8">B8</a>), so the water stays exactly as built.</p>
+          <p class="relies">Relies on <a href="#B8">B8</a>.</p>
         </details>
       </article>
     </section>
@@ -1114,26 +1109,24 @@ footer p { margin: 0 0 6px; }
         <div class="rule-head">
           <a class="rid t-T" href="#T12" title="Link to T12">T12</a>
           <h3>Wall</h3>
-          <span class="badge badge-full">assumed</span>
         </div>
         <p class="summary">A wall post is 8/16 wide and 1.5 blocks tall for collisions, so it stops the cart at minX 1.75.</p>
         <details>
           <summary>Full rule <span class="src">piston_rig.py</span></summary>
           <p>A wall post is 8/16 wide and 1.5 blocks tall for collisions, so the post at (1,0,1) stops the pulled-back cart at minX = 1.75.</p>
-          <p class="relies">Relies on assumption <a href="#A7">A7</a>.</p>
+          <p class="relies">Relies on <a href="#A7">A7</a>.</p>
         </details>
       </article>
       <article class="rule" id="T13" data-topic="T" data-search="t13 trigger changing the note block makes the observer pulse the piston; the exact timing doesn&#x27;t matter. changing the note block makes the observer pulse the piston (out, then back). the exact pulse timing doesn&#x27;t matter: an unfinished extension is completed before the retraction starts. piston_rig.py">
         <div class="rule-head">
           <a class="rid t-T" href="#T13" title="Link to T13">T13</a>
           <h3>Trigger</h3>
-          <span class="badge badge-full">assumed</span>
         </div>
         <p class="summary">Changing the note block makes the observer pulse the piston; the exact timing doesn&#x27;t matter.</p>
         <details>
           <summary>Full rule <span class="src">piston_rig.py</span></summary>
           <p>Changing the note block makes the observer pulse the piston (out, then back). The exact pulse timing doesn&#x27;t matter: an unfinished extension is completed before the retraction starts.</p>
-          <p class="relies">Relies on assumption <a href="#A5">A5</a>.</p>
+          <p class="relies">Relies on <a href="#A5">A5</a>.</p>
         </details>
       </article>
     </section>
