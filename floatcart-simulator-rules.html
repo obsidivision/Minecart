@@ -1,0 +1,1328 @@
+<!doctype html>
+<!--
+  Floatcart simulator rules: a standalone page. No external requests, fonts or libraries.
+
+  Structure, for whoever maintains it:
+  - <style> in <head>: colour tokens on :root; dark mode through prefers-color-scheme and
+    a [data-theme] attribute on <html> (the theme button sets it and remembers it).
+  - Each rule is an <article class="rule" id="ID" data-topic="LETTER" data-search="...">,
+    so /page.html#R8 links straight to a rule. data-search is the lowercase text the
+    search box matches against.
+  - The short script at the end adds search, topic filters, expand/collapse and the
+    theme button. Without JavaScript every rule is still shown.
+  - Generated from the simulator's code (mcredstone/rules.py collects the [ID] rule lines).
+    The page has no Jekyll front matter, so GitHub Pages serves it as-is.
+  - The header links to floatcart-3d.html (the 3D view), assumed to be in the same folder;
+    the 3D page links back to rules here by ID (#R8 etc.) and shares the saved theme.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Floatcart simulator rules · Minecraft Java 26.2</title>
+<meta name="description" content="Every Minecraft rule used to simulate the vertical floatcart challenge tick by tick in Java Edition 26.2: minecart physics, powered rails, collisions, honey, water and the piston tester.">
+<meta name="color-scheme" content="light dark">
+<script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<style>
+:root {
+  --bg: #f6f5f1; --surface: #ffffff; --soft: #f0efe9; --line: #e2e0d9;
+  --fg: #1b1d20; --fg2: #33373d; --muted: #5d646d; --accent: #2a64c9; --warn: #a55a00;
+  --t-M: #4453c7; --t-R: #7d6414; --t-P: #bb3526; --t-F: #0b7599; --t-C: #7444bb;
+  --t-H: #c26a00; --t-W: #1f68c8; --t-T: #2b8448; --t-X: #5d646d;
+  --shadow: 0 1px 2px rgba(20, 22, 26, .04), 0 2px 10px rgba(20, 22, 26, .04);
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1113; --surface: #171a1e; --soft: #1e2227; --line: #2a2f35;
+    --fg: #e6e8eb; --fg2: #cfd3d8; --muted: #9ba3ad; --accent: #79a8ff; --warn: #f0a24a;
+    --t-M: #a3adff; --t-R: #e2c56a; --t-P: #ff8e7e; --t-F: #62cbee; --t-C: #c6a6ff;
+    --t-H: #ffac52; --t-W: #86b6ff; --t-T: #74d394; --t-X: #b3bac4;
+    --shadow: none;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1113; --surface: #171a1e; --soft: #1e2227; --line: #2a2f35;
+  --fg: #e6e8eb; --fg2: #cfd3d8; --muted: #9ba3ad; --accent: #79a8ff; --warn: #f0a24a;
+  --t-M: #a3adff; --t-R: #e2c56a; --t-P: #ff8e7e; --t-F: #62cbee; --t-C: #c6a6ff;
+  --t-H: #ffac52; --t-W: #86b6ff; --t-T: #74d394; --t-X: #b3bac4;
+  --shadow: none;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 190px; -webkit-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 16px/1.55 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 16px; }
+
+/* header */
+.site { padding: 36px 0 14px; }
+.top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.brand { display: flex; gap: 14px; align-items: center; }
+.logo { width: 46px; height: 35px; color: var(--accent); flex: none; }
+h1 { font-size: clamp(26px, 4.2vw, 36px); line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
+.sub { color: var(--muted); margin: 10px 0 0; font-size: 17px; max-width: 720px; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; padding: 0; list-style: none; }
+.meta li { font-size: 13px; padding: 4px 10px; border-radius: 999px; background: var(--soft); border: 1px solid var(--line); color: var(--muted); }
+.meta b { color: var(--fg); font-weight: 600; }
+.btn {
+  appearance: none; font: inherit; font-size: 13.5px; line-height: 1.2; cursor: pointer; white-space: nowrap;
+  padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+.btn:hover { border-color: var(--muted); }
+.theme-btn { display: inline-flex; align-items: center; gap: 7px; }
+.theme-btn svg { width: 16px; height: 16px; flex: none; }
+.theme-btn .i-sun, .theme-btn[aria-pressed="true"] .i-moon { display: none; }
+.theme-btn[aria-pressed="true"] .i-sun { display: block; }
+.intro { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px 18px; margin: 6px 0 16px; box-shadow: var(--shadow); }
+.intro p { margin: 0 0 8px; color: var(--fg2); }
+.intro p:last-child { margin: 0; }
+
+/* toolbar */
+.toolbar {
+  position: sticky; top: 0; z-index: 5; padding: 12px 0 10px; margin-bottom: 4px;
+  background: color-mix(in srgb, var(--bg) 95%, transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.row { display: flex; gap: 8px; align-items: center; }
+.search { position: relative; flex: 1; min-width: 0; }
+.search svg { position: absolute; left: 11px; top: 50%; width: 16px; height: 16px; margin-top: -8px; color: var(--muted); pointer-events: none; }
+.search input {
+  width: 100%; font: inherit; font-size: 15px; padding: 9px 12px 9px 35px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+.search input::placeholder { color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip {
+  appearance: none; font: inherit; font-size: 13.5px; line-height: 1.2; cursor: pointer; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px; border-radius: 999px;
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg);
+}
+.chip[aria-pressed="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--c); flex: none; }
+.status { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+
+/* topic colours */
+.t-M { --c: var(--t-M); } .t-R { --c: var(--t-R); } .t-P { --c: var(--t-P); }
+.t-F { --c: var(--t-F); } .t-C { --c: var(--t-C); } .t-H { --c: var(--t-H); }
+.t-W { --c: var(--t-W); } .t-T { --c: var(--t-T); } .t-X { --c: var(--t-X); }
+
+/* sections and rules */
+.topic { margin: 28px 0 10px; }
+.topic-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+.letter {
+  width: 36px; height: 36px; border-radius: 10px; flex: none; display: grid; place-items: center;
+  font: 700 17px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  color: var(--c); background: color-mix(in srgb, var(--c) 15%, transparent);
+}
+h2 { font-size: 20px; line-height: 1.25; margin: 2px 0 0; letter-spacing: -0.01em; }
+.count { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 4px; }
+.blurb { margin: 2px 0 0; color: var(--muted); font-size: 14.5px; }
+.rule {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 14px; margin: 8px 0; box-shadow: var(--shadow);
+}
+.rule:target { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.rule-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rid {
+  font: 600 13px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; text-decoration: none;
+  padding: 5px 7px; border-radius: 7px; min-width: 40px; text-align: center;
+  color: var(--c); background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+h3 { font-size: 16.5px; line-height: 1.3; margin: 0; }
+.badge { font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 999px; color: var(--warn); }
+.badge-full { background: color-mix(in srgb, var(--warn) 16%, transparent); }
+.badge-part { border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+.summary { margin: 8px 0 0; }
+.rule details { margin-top: 8px; }
+.rule summary { cursor: pointer; color: var(--muted); font-size: 13.5px; width: fit-content; }
+.rule summary:hover { color: var(--fg); }
+.src {
+  font: 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin-left: 6px;
+  padding: 1px 6px; border-radius: 6px; background: var(--soft); border: 1px solid var(--line); color: var(--muted);
+}
+.rule details p { margin: 8px 0 0; font-size: 14.5px; color: var(--fg2); }
+.rule details .relies { font-size: 13px; color: var(--muted); }
+.rule p a, .assumptions a {
+  text-decoration: none; font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  padding: 0 4px; border-radius: 4px; background: var(--soft);
+}
+.rule p a:hover, .assumptions a:hover { text-decoration: underline; }
+.empty { text-align: center; color: var(--muted); padding: 32px 0; }
+
+/* assumptions and footer */
+.assumptions { margin: 36px 0 10px; }
+.assumptions ul { list-style: none; padding: 0; margin: 10px 0 0; }
+.assumptions li {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  padding: 9px 12px; margin: 6px 0; font-size: 15px; color: var(--fg2);
+}
+.assumptions li:target { border-color: var(--accent); }
+.alab {
+  font: 600 12.5px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin-right: 6px;
+  padding: 2px 6px; border-radius: 6px; color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent);
+}
+.used { color: var(--muted); font-size: 13.5px; }
+footer { color: var(--muted); font-size: 13.5px; border-top: 1px solid var(--line); margin-top: 36px; padding: 18px 0 40px; }
+footer p { margin: 0 0 6px; }
+
+@media (max-width: 640px) {
+  html { scroll-padding-top: 150px; }
+  .site { padding-top: 24px; }
+  .sub { font-size: 16px; }
+  .theme-btn { padding: 8px; }
+  .theme-btn .label { display: none; }
+  .logo { width: 38px; height: 29px; }
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-right: -16px; padding-right: 16px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .rule { padding: 11px 12px; }
+}
+@media print {
+  .toolbar, #theme { display: none; }
+  body { background: #fff; }
+  .rule, .assumptions li { break-inside: avoid; box-shadow: none; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="site">
+    <div class="top">
+      <div class="brand">
+        <svg class="logo" viewBox="0 0 32 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="26" height="12" rx="1.5" fill="currentColor" opacity=".18"/><path d="M3 4h26v12H3z" fill="none" stroke="currentColor" stroke-width="2"/><path d="M7 8h18" stroke="currentColor" stroke-width="2" opacity=".5"/><circle cx="9" cy="19" r="3" fill="currentColor"/><circle cx="23" cy="19" r="3" fill="currentColor"/><path d="M0 23h32" stroke="currentColor" stroke-width="2" opacity=".35"/></svg>
+        <h1>Floatcart simulator rules</h1>
+      </div>
+      <button type="button" class="btn theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode">
+        <svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg>
+        <svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.6" fill="currentColor"/><path d="M10 1.8v2.4M10 15.8v2.4M1.8 10h2.4M15.8 10h2.4M4.2 4.2l1.7 1.7M14.1 14.1l1.7 1.7M4.2 15.8l1.7-1.7M14.1 5.9l1.7-1.7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <span class="label">Dark mode</span>
+      </button>
+    </div>
+    <p class="sub">Every Minecraft rule used to simulate FarCoolHat's <em>vertical floatcart challenge</em> tick by tick, in Java Edition 26.2. <a href="floatcart-3d.html">See the build and both runs in 3D</a>.</p>
+    <ul class="meta">
+      <li><b>67</b> rules</li>
+      <li><b>9</b> topics</li>
+      <li>Classic minecart engine</li>
+      <li><b>3</b> assumed · <b>3</b> partly assumed</li>
+    </ul>
+  </header>
+
+  <div class="intro">
+    <p>A <strong>floatcart</strong> is a minecart whose top sits less than 1e-5 of a block above a block boundary (rule <a href="#X3">X3</a>). The simulator applies the rules below in the game's order, and together they reproduce the creator's stored attempt bit for bit (y&nbsp;=&nbsp;1.2967236180145676).</p>
+    <p>Each rule was checked against the game's decompiled source, except the few marked <em>assumed</em> (listed at the <a href="#assumptions">bottom</a>). In an ID, the letter is the topic and the number follows the order in the code. <em>Full rule</em> shows the exact wording from the simulator's code and the file it is in.</p>
+  </div>
+
+  <div class="toolbar" role="search">
+    <div class="row">
+      <label class="search">
+        <span class="visually-hidden" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Search the rules</span>
+        <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input id="q" type="search" placeholder="Search rules: honey, 0.4, water, R8 …" autocomplete="off" spellcheck="false">
+      </label>
+      <button type="button" class="btn" id="expand" aria-pressed="false">Expand all</button>
+    </div>
+    <div class="chips" role="group" aria-label="Filter by topic">
+        <button type="button" class="chip" data-topic="all" aria-pressed="true">All</button>
+        <button type="button" class="chip" data-topic="M" aria-pressed="false"><span class="dot t-M" aria-hidden="true"></span>Minecart basics</button>
+        <button type="button" class="chip" data-topic="R" aria-pressed="false"><span class="dot t-R" aria-hidden="true"></span>Riding the rails</button>
+        <button type="button" class="chip" data-topic="P" aria-pressed="false"><span class="dot t-P" aria-hidden="true"></span>Powered rails and redstone</button>
+        <button type="button" class="chip" data-topic="F" aria-pressed="false"><span class="dot t-F" aria-hidden="true"></span>Off the rails</button>
+        <button type="button" class="chip" data-topic="C" aria-pressed="false"><span class="dot t-C" aria-hidden="true"></span>Collisions and block shapes</button>
+        <button type="button" class="chip" data-topic="H" aria-pressed="false"><span class="dot t-H" aria-hidden="true"></span>Honey</button>
+        <button type="button" class="chip" data-topic="W" aria-pressed="false"><span class="dot t-W" aria-hidden="true"></span>Water</button>
+        <button type="button" class="chip" data-topic="T" aria-pressed="false"><span class="dot t-T" aria-hidden="true"></span>The tester</button>
+        <button type="button" class="chip" data-topic="X" aria-pressed="false"><span class="dot t-X" aria-hidden="true"></span>Exact numbers</button>
+    </div>
+    <p class="status" id="status" aria-live="polite">Showing all 67 rules</p>
+  </div>
+
+  <main>
+    <section class="topic" id="topic-M" data-topic="M" aria-labelledby="h-M">
+      <div class="topic-head">
+        <span class="letter t-M" aria-hidden="true">M</span>
+        <div>
+          <h2 id="h-M">Minecart basics <span class="count">8</span></h2>
+          <p class="blurb">What a minecart is and the order of each game tick.</p>
+        </div>
+      </div>
+      <article class="rule" id="M1" data-topic="M" data-search="m1 size the hitbox is 0.98 wide and 0.7 tall; the cart&#x27;s position is the bottom centre. a minecart&#x27;s hitbox is 0.98 wide and 0.7 tall (as floats: half-width 0.49000000953674316, height 0.699999988079071); its position is the bottom centre. oldcart.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M1" title="Link to M1">M1</a>
+          <h3>Size</h3>
+          
+        </div>
+        <p class="summary">The hitbox is 0.98 wide and 0.7 tall; the cart&#x27;s position is the bottom centre.</p>
+        <details>
+          <summary>Full rule <span class="src">oldcart.py</span></summary>
+          <p>A minecart&#x27;s hitbox is 0.98 wide and 0.7 tall (as floats: half-width 0.49000000953674316, height 0.699999988079071); its position is the bottom centre.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M2" data-topic="M" data-search="m2 classic engine this world uses the classic minecart physics (the experimental minecart improvements are off). this world runs the classic minecart physics (the experimental minecart-improvements option is off); both stored carts sit exactly where the classic track-height rule (r2) puts them. physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M2" title="Link to M2">M2</a>
+          <h3>Classic engine</h3>
+          
+        </div>
+        <p class="summary">This world uses the classic minecart physics (the experimental minecart improvements are off).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>This world runs the classic minecart physics (the experimental minecart-improvements option is off); both stored carts sit exactly where the classic track-height rule (<a href="#R2">R2</a>) puts them.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M3" data-topic="M" data-search="m3 placing a minecart item on a rail spawns the cart at the rail block + (0.5, 1/16, 0.5), or half a block higher on a slope. a minecart item used on a rail spawns the cart at the rail block + (0.5, 1/16, 0.5), half a block higher on a slope. physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M3" title="Link to M3">M3</a>
+          <h3>Placing</h3>
+          
+        </div>
+        <p class="summary">A minecart item on a rail spawns the cart at the rail block + (0.5, 1/16, 0.5), or half a block higher on a slope.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A minecart item used on a rail spawns the cart at the rail block + (0.5, 1/16, 0.5), half a block higher on a slope.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M4" data-topic="M" data-search="m4 tick order gravity, then the rail or off-rail move, then block effects, then the water check (used from the next tick). gravity, then the rail or off-rail move, then block effects, then the water check (which sets &quot;in water&quot; for the next tick). physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M4" title="Link to M4">M4</a>
+          <h3>Tick order</h3>
+          
+        </div>
+        <p class="summary">Gravity, then the rail or off-rail move, then block effects, then the water check (used from the next tick).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Gravity, then the rail or off-rail move, then block effects, then the water check (which sets &quot;in water&quot; for the next tick).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M5" data-topic="M" data-search="m5 gravity vertical speed drops by 0.04 per tick, or 0.005 if the cart was in water. every tick a cart&#x27;s vertical speed drops by 0.04, or by 0.005 if it was in water. physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M5" title="Link to M5">M5</a>
+          <h3>Gravity</h3>
+          
+        </div>
+        <p class="summary">Vertical speed drops by 0.04 per tick, or 0.005 if the cart was in water.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Every tick a cart&#x27;s vertical speed drops by 0.04, or by 0.005 if it was in water.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M6" data-topic="M" data-search="m6 rail lookup if the block below the cart&#x27;s feet is a rail, it rides that; otherwise it rides the block at its feet. so a cart sitting on honey rides the rail under the honey. the cart rides the block under its feet block if that is a rail, otherwise the block at its feet. so a cart resting on honey (feet at y + 15/16, inside the honey&#x27;s cell) rides the rail under the honey block. physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M6" title="Link to M6">M6</a>
+          <h3>Rail lookup</h3>
+          
+        </div>
+        <p class="summary">If the block below the cart&#x27;s feet is a rail, it rides that; otherwise it rides the block at its feet. So a cart sitting on honey rides the rail under the honey.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The cart rides the block under its feet block if that is a rail, otherwise the block at its feet. So a cart resting on honey (feet at y + 15/16, inside the honey&#x27;s cell) rides the rail under the honey block.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M7" data-topic="M" data-search="m7 block effects after every move block effects (honey, detector rails) run after every move, not once per tick. in the classic engine a minecart&#x27;s inside-block effects (honey slide, detector rails) run after every move, not once per tick. physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M7" title="Link to M7">M7</a>
+          <h3>Block effects after every move</h3>
+          
+        </div>
+        <p class="summary">Block effects (honey, detector rails) run after every move, not once per tick.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>In the classic engine a minecart&#x27;s inside-block effects (honey slide, detector rails) run after every move, not once per tick.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="M8" data-topic="M" data-search="m8 fall distance grows while falling and resets on the ground, on rails, in water and on a honey slide. it&#x27;s tracked but never changes the motion. it grows while the cart falls outside water and resets on the ground, on a rail, in water and on a honey slide. it is tracked here but never changes the motion. physics.py">
+        <div class="rule-head">
+          <a class="rid t-M" href="#M8" title="Link to M8">M8</a>
+          <h3>Fall distance</h3>
+          
+        </div>
+        <p class="summary">Grows while falling and resets on the ground, on rails, in water and on a honey slide. It&#x27;s tracked but never changes the motion.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>It grows while the cart falls outside water and resets on the ground, on a rail, in water and on a honey slide. It is tracked here but never changes the motion.</p>
+          
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-R" data-topic="R" aria-labelledby="h-R">
+      <div class="topic-head">
+        <span class="letter t-R" aria-hidden="true">R</span>
+        <div>
+          <h2 id="h-R">Riding the rails <span class="count">11</span></h2>
+          <p class="blurb">How a cart moves along a rail in the classic engine, step by step.</p>
+        </div>
+      </div>
+      <article class="rule" id="R1" data-topic="R" data-search="r1 track ends every rail shape has two ends; the low end of a slope is one block down. every rail shape has two ends, given as offsets from the rail block; the low end of a slope is one block down (ascending_north: high end north, low end south). oldcart.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R1" title="Link to R1">R1</a>
+          <h3>Track ends</h3>
+          
+        </div>
+        <p class="summary">Every rail shape has two ends; the low end of a slope is one block down.</p>
+        <details>
+          <summary>Full rule <span class="src">oldcart.py</span></summary>
+          <p>Every rail shape has two ends, given as offsets from the rail block; the low end of a slope is one block down (ascending_north: high end north, low end south).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R2" data-topic="R" data-search="r2 height on the track 1/16 above the rail block on flat track. on a slope it rises evenly from 1/16 at the low edge to 1 1/16 at the high edge. on a flat rail the cart rides 1/16 above the rail block; on a slope its height rises evenly from 1/16 at the low edge to 1 1/16 at the high edge. (so on a slope the height above the rail block is 1/16 plus the distance from the low edge.) oldcart.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R2" title="Link to R2">R2</a>
+          <h3>Height on the track</h3>
+          
+        </div>
+        <p class="summary">1/16 above the rail block on flat track. On a slope it rises evenly from 1/16 at the low edge to 1 1/16 at the high edge.</p>
+        <details>
+          <summary>Full rule <span class="src">oldcart.py</span></summary>
+          <p>On a flat rail the cart rides 1/16 above the rail block; on a slope its height rises evenly from 1/16 at the low edge to 1 1/16 at the high edge. (So on a slope the height above the rail block is 1/16 plus the distance from the low edge.)</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R3" data-topic="R" data-search="r3 slope pull +1/128 block/tick toward the low end (×0.2 in water). on a slope the cart gains 1/128 block/tick of speed toward the low end (x0.2 in water). physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R3" title="Link to R3">R3</a>
+          <h3>Slope pull</h3>
+          
+        </div>
+        <p class="summary">+1/128 block/tick toward the low end (×0.2 in water).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>On a slope the cart gains 1/128 block/tick of speed toward the low end (x0.2 in water).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R4" data-topic="R" data-search="r4 steering velocity is turned along the track toward the end the cart is heading for; speed is capped at 2. the horizontal velocity is turned to point along the track, toward the end the cart is already heading for, and its speed is capped at 2. physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R4" title="Link to R4">R4</a>
+          <h3>Steering</h3>
+          
+        </div>
+        <p class="summary">Velocity is turned along the track toward the end the cart is heading for; speed is capped at 2.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The horizontal velocity is turned to point along the track, toward the end the cart is already heading for, and its speed is capped at 2.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R5" data-topic="R" data-search="r5 centring before moving, the cart is put on the track&#x27;s centre line at the rail block&#x27;s height, one block higher on a slope. that puts a cart under the honey inside the honey block, which is why it moves at ×0.4. before moving, the cart is put on the track&#x27;s centre line at the rail block&#x27;s height, one block higher on a slope. a cart creeping under a honey block is therefore inside the honey while it moves (h1: speed x0.4). physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R5" title="Link to R5">R5</a>
+          <h3>Centring</h3>
+          
+        </div>
+        <p class="summary">Before moving, the cart is put on the track&#x27;s centre line at the rail block&#x27;s height, one block higher on a slope. That puts a cart under the honey inside the honey block, which is why it moves at ×0.4.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Before moving, the cart is put on the track&#x27;s centre line at the rail block&#x27;s height, one block higher on a slope. A cart creeping under a honey block is therefore inside the honey while it moves (<a href="#H1">H1</a>: speed x0.4).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R6" data-topic="R" data-search="r6 move cap at most 0.4 per axis per tick (0.2 in water); with a passenger it moves 75% of its velocity. the cart moves by its velocity, capped at 0.4 per axis (0.2 in water); with a passenger it moves 75% of its velocity. physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R6" title="Link to R6">R6</a>
+          <h3>Move cap</h3>
+          
+        </div>
+        <p class="summary">At most 0.4 per axis per tick (0.2 in water); with a passenger it moves 75% of its velocity.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The cart moves by its velocity, capped at 0.4 per axis (0.2 in water); with a passenger it moves 75% of its velocity.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R7" data-topic="R" data-search="r7 leaving a slope moving past a slope&#x27;s low end drops the cart one block. if the move takes the cart into the cell beyond the slope&#x27;s low end, it drops one block (so the track height is looked up one level down). physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R7" title="Link to R7">R7</a>
+          <h3>Leaving a slope</h3>
+          
+        </div>
+        <p class="summary">Moving past a slope&#x27;s low end drops the cart one block.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>If the move takes the cart into the cell beyond the slope&#x27;s low end, it drops one block (so the track height is looked up one level down).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R8" data-topic="R" data-search="r8 rail friction the cart keeps 96% of its speed each tick (99.7% with a passenger), and vertical speed is zeroed. the cart keeps 96% of its speed each tick (99.7% with a passenger) and loses its vertical speed. physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R8" title="Link to R8">R8</a>
+          <h3>Rail friction</h3>
+          
+        </div>
+        <p class="summary">The cart keeps 96% of its speed each tick (99.7% with a passenger), and vertical speed is zeroed.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The cart keeps 96% of its speed each tick (99.7% with a passenger) and loses its vertical speed.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R9" data-topic="R" data-search="r9 water drag in water it then keeps only 95% of that. a cart in water then keeps only 95% of that. physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R9" title="Link to R9">R9</a>
+          <h3>Water drag</h3>
+          
+        </div>
+        <p class="summary">In water it then keeps only 95% of that.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A cart in water then keeps only 95% of that.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R10" data-topic="R" data-search="r10 height and speed speed changes by 0.05 × the height lost this tick; then y is set to the track height. speed changes by 0.05 x (height lost this tick): faster going down, slower going up. then y is set to the track height (r2). physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R10" title="Link to R10">R10</a>
+          <h3>Height and speed</h3>
+          
+        </div>
+        <p class="summary">Speed changes by 0.05 × the height lost this tick; then y is set to the track height.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Speed changes by 0.05 x (height lost this tick): faster going down, slower going up. Then y is set to the track height (<a href="#R2">R2</a>).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="R11" data-topic="R" data-search="r11 new block on entering a new block, velocity is re-aimed along that step at the same speed. when the cart crosses into another block, its velocity is re-aimed straight along that step, keeping its speed. physics.py">
+        <div class="rule-head">
+          <a class="rid t-R" href="#R11" title="Link to R11">R11</a>
+          <h3>New block</h3>
+          
+        </div>
+        <p class="summary">On entering a new block, velocity is re-aimed along that step at the same speed.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>When the cart crosses into another block, its velocity is re-aimed straight along that step, keeping its speed.</p>
+          
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-P" data-topic="P" aria-labelledby="h-P">
+      <div class="topic-head">
+        <span class="letter t-P" aria-hidden="true">P</span>
+        <div>
+          <h2 id="h-P">Powered rails and redstone <span class="count">6</span></h2>
+          <p class="blurb">Boosting, braking and how the levers power the rails.</p>
+        </div>
+      </div>
+      <article class="rule" id="P1" data-topic="P" data-search="p1 boost on a powered rail that&#x27;s on, a cart faster than 0.01 gains 0.06 block/tick in its direction of travel. on a powered rail that is on, a cart faster than 0.01 gains 0.06 block/tick in its direction of travel, every tick. physics.py">
+        <div class="rule-head">
+          <a class="rid t-P" href="#P1" title="Link to P1">P1</a>
+          <h3>Boost</h3>
+          
+        </div>
+        <p class="summary">On a powered rail that&#x27;s ON, a cart faster than 0.01 gains 0.06 block/tick in its direction of travel.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>On a powered rail that is ON, a cart faster than 0.01 gains 0.06 block/tick in its direction of travel, every tick.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="P2" data-topic="P" data-search="p2 standing start on a flat powered rail that&#x27;s on, a slower cart is pushed at 0.02 away from a conductor block at one end. west or north is checked first. on a flat powered rail that is on, a slower cart is pushed at 0.02 away from a conductor block (p4) at one end; west or north is checked first. physics.py">
+        <div class="rule-head">
+          <a class="rid t-P" href="#P2" title="Link to P2">P2</a>
+          <h3>Standing start</h3>
+          
+        </div>
+        <p class="summary">On a flat powered rail that&#x27;s ON, a slower cart is pushed at 0.02 away from a conductor block at one end. West or north is checked first.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>On a flat powered rail that is ON, a slower cart is pushed at 0.02 away from a conductor block (<a href="#P4">P4</a>) at one end; west or north is checked first.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="P3" data-topic="P" data-search="p3 halt rail a powered rail that&#x27;s off stops a cart slower than 0.03 dead; otherwise it halves its speed. a powered rail that is off brakes the cart: below speed 0.03 it stops dead, otherwise its speed is halved (and vertical speed zeroed). physics.py">
+        <div class="rule-head">
+          <a class="rid t-P" href="#P3" title="Link to P3">P3</a>
+          <h3>Halt rail</h3>
+          
+        </div>
+        <p class="summary">A powered rail that&#x27;s OFF stops a cart slower than 0.03 dead; otherwise it halves its speed.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A powered rail that is OFF brakes the cart: below speed 0.03 it stops dead, otherwise its speed is halved (and vertical speed zeroed).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="P4" data-topic="P" data-search="p4 conductors concrete and note blocks conduct redstone. glass, grates, observers, pistons, honey, buds, rails, levers and signs don&#x27;t. concrete and note blocks conduct redstone; glass, copper grates, observers, pistons, honey, amethyst buds, rails, levers and signs don&#x27;t. physics.py">
+        <div class="rule-head">
+          <a class="rid t-P" href="#P4" title="Link to P4">P4</a>
+          <h3>Conductors</h3>
+          
+        </div>
+        <p class="summary">Concrete and note blocks conduct redstone. Glass, grates, observers, pistons, honey, buds, rails, levers and signs don&#x27;t.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Concrete and note blocks conduct redstone; glass, copper grates, observers, pistons, honey, amethyst buds, rails, levers and signs don&#x27;t.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="P5" data-topic="P" data-search="p5 lever a lever powers the block it&#x27;s attached to. the lower lever&#x27;s concrete powers rail (2,2,6). a lever powers the block it is attached to. the lower lever (1,2,5) sits on the concrete at (2,2,5), and that powered block powers rail (2,2,6) next to it. verify_lever_solution.py">
+        <div class="rule-head">
+          <a class="rid t-P" href="#P5" title="Link to P5">P5</a>
+          <h3>Lever</h3>
+          
+        </div>
+        <p class="summary">A lever powers the block it&#x27;s attached to. The lower lever&#x27;s concrete powers rail (2,2,6).</p>
+        <details>
+          <summary>Full rule <span class="src">verify_lever_solution.py</span></summary>
+          <p>A lever powers the block it is attached to. The lower lever (1,2,5) sits on the concrete at (2,2,5), and that powered block powers rail (2,2,6) next to it.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="P6" data-topic="P" data-search="p6 rail power chain a powered rail is also on if it connects along the track through powered rails to one that has power, within 8 rails. so (2,1,7) switches together with (2,2,6). a powered rail is also on when it connects along the track, through on powered rails, to one that has power from a block, within 8 rails. (2,1,7) gets its power from (2,2,6) this way, so the lever switches both together. verify_lever_solution.py">
+        <div class="rule-head">
+          <a class="rid t-P" href="#P6" title="Link to P6">P6</a>
+          <h3>Rail power chain</h3>
+          
+        </div>
+        <p class="summary">A powered rail is also ON if it connects along the track through powered rails to one that has power, within 8 rails. So (2,1,7) switches together with (2,2,6).</p>
+        <details>
+          <summary>Full rule <span class="src">verify_lever_solution.py</span></summary>
+          <p>A powered rail is also ON when it connects along the track, through ON powered rails, to one that has power from a block, within 8 rails. (2,1,7) gets its power from (2,2,6) this way, so the lever switches both together.</p>
+          
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-F" data-topic="F" aria-labelledby="h-F">
+      <div class="topic-head">
+        <span class="letter t-F" aria-hidden="true">F</span>
+        <div>
+          <h2 id="h-F">Off the rails <span class="count">3</span></h2>
+          <p class="blurb">What happens once the cart leaves the rails.</p>
+        </div>
+      </div>
+      <article class="rule" id="F1" data-topic="F" data-search="f1 speed cap horizontal speed is capped at 0.4 per axis (0.2 in water). off the rails, horizontal speed is capped at 0.4 per axis (0.2 in water). physics.py">
+        <div class="rule-head">
+          <a class="rid t-F" href="#F1" title="Link to F1">F1</a>
+          <h3>Speed cap</h3>
+          
+        </div>
+        <p class="summary">Horizontal speed is capped at 0.4 per axis (0.2 in water).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Off the rails, horizontal speed is capped at 0.4 per axis (0.2 in water).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="F2" data-topic="F" data-search="f2 ground friction a cart resting on a block loses half its speed before moving. a cart resting on a block loses half its speed (all three axes) before it moves. physics.py">
+        <div class="rule-head">
+          <a class="rid t-F" href="#F2" title="Link to F2">F2</a>
+          <h3>Ground friction</h3>
+          
+        </div>
+        <p class="summary">A cart resting on a block loses half its speed before moving.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A cart resting on a block loses half its speed (all three axes) before it moves.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="F3" data-topic="F" data-search="f3 air drag after moving, a cart in the air keeps 95% of its speed. after moving, a cart that is not on the ground keeps 95% of its speed. physics.py">
+        <div class="rule-head">
+          <a class="rid t-F" href="#F3" title="Link to F3">F3</a>
+          <h3>Air drag</h3>
+          
+        </div>
+        <p class="summary">After moving, a cart in the air keeps 95% of its speed.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>After moving, a cart that is not on the ground keeps 95% of its speed.</p>
+          
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-C" data-topic="C" aria-labelledby="h-C">
+      <div class="topic-head">
+        <span class="letter t-C" aria-hidden="true">C</span>
+        <div>
+          <h2 id="h-C">Collisions and block shapes <span class="count">13</span></h2>
+          <p class="blurb">Hitboxes, block shapes and how collisions are resolved.</p>
+        </div>
+      </div>
+      <article class="rule" id="C1" data-topic="C" data-search="c1 axis order a move is resolved vertical axis first, then the horizontal axis with the bigger move. a move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). assumed (b1). physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C1" title="Link to C1">C1</a>
+          <h3>Axis order</h3>
+          <span class="badge badge-full">assumed</span>
+        </div>
+        <p class="summary">A move is resolved vertical axis first, then the horizontal axis with the bigger move.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). Assumed (<a href="#B1">B1</a>).</p>
+          <p class="relies">Relies on assumption <a href="#B1">B1</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="C2" data-topic="C" data-search="c2 collision check the blocks checked are the ones whose boxes overlap the hitbox stretched along the move. the blocks tested for a move are those whose collision boxes overlap the hitbox stretched along the move. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C2" title="Link to C2">C2</a>
+          <h3>Collision check</h3>
+          
+        </div>
+        <p class="summary">The blocks checked are the ones whose boxes overlap the hitbox stretched along the move.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The blocks tested for a move are those whose collision boxes overlap the hitbox stretched along the move.</p>
+          <p class="relies">Relies on assumption <a href="#B2">B2</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="C3" data-topic="C" data-search="c3 collision tolerance the tolerance is 1e-7. a box the mover already overlaps doesn&#x27;t block it, and moves under 1e-7 count as zero. a block face stops a mover only if the mover overlaps it sideways by more than 1e-7 and is no more than 1e-7 past the face already; a box the mover already overlaps does not block it; a move shorter than 1e-7 on an axis counts as zero. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C3" title="Link to C3">C3</a>
+          <h3>Collision tolerance</h3>
+          
+        </div>
+        <p class="summary">The tolerance is 1e-7. A box the mover already overlaps doesn&#x27;t block it, and moves under 1e-7 count as zero.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A block face stops a mover only if the mover overlaps it sideways by more than 1e-7 and is no more than 1e-7 past the face already; a box the mover already overlaps does not block it; a move shorter than 1e-7 on an axis counts as zero.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C4" data-topic="C" data-search="c4 tiny moves if collisions shrink a move to almost nothing (squared length 1e-7 or less), the cart doesn&#x27;t move at all. if collisions cut a move down to a squared length of 1e-7 or less (and by at least 1e-7), the cart does not move at all. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C4" title="Link to C4">C4</a>
+          <h3>Tiny moves</h3>
+          
+        </div>
+        <p class="summary">If collisions shrink a move to almost nothing (squared length 1e-7 or less), the cart doesn&#x27;t move at all.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>If collisions cut a move down to a squared length of 1e-7 or less (and by at least 1e-7), the cart does not move at all.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C5" data-topic="C" data-search="c5 no bounce a blocked direction loses all its speed. that these blocks add no bounce is assumed. a blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here add no bounce, b3). a horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C5" title="Link to C5">C5</a>
+          <h3>No bounce</h3>
+          <span class="badge badge-part">partly assumed</span>
+        </div>
+        <p class="summary">A blocked direction loses all its speed. That these blocks add no bounce is assumed.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here add no bounce, <a href="#B3">B3</a>). A horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more.</p>
+          <p class="relies">Relies on assumption <a href="#B3">B3</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="C6" data-topic="C" data-search="c6 on the ground the cart is on the ground when a downward move is blocked. its supporting block is the nearest one in a thin slab under the hitbox. the cart is on the ground when a downward move was blocked. its supporting block is the nearest block (centre to cart position) inside a 1e-6 thin slab under its hitbox; if there is none, the slab is tried again shifted back along the move&#x27;s horizontal part. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C6" title="Link to C6">C6</a>
+          <h3>On the ground</h3>
+          
+        </div>
+        <p class="summary">The cart is on the ground when a downward move is blocked. Its supporting block is the nearest one in a thin slab under the hitbox.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The cart is on the ground when a downward move was blocked. Its supporting block is the nearest block (centre to cart position) inside a 1e-6 thin slab under its hitbox; if there is none, the slab is tried again shifted back along the move&#x27;s horizontal part.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C7" data-topic="C" data-search="c7 block under the feet found from the supporting block&#x27;s column; walls, fence gates and fences are special cases. with a supporting block (c6), it is the block in that block&#x27;s column at floor(y - offset); a wall or fence-gate support (or a fence, for offsets up to 0.5) counts as itself, and so does any support when the offset is 1e-5 or less. without one, it is the block at floor(position - offset). physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C7" title="Link to C7">C7</a>
+          <h3>Block under the feet</h3>
+          
+        </div>
+        <p class="summary">Found from the supporting block&#x27;s column; walls, fence gates and fences are special cases.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>With a supporting block (<a href="#C6">C6</a>), it is the block in that block&#x27;s column at floor(y - offset); a wall or fence-gate support (or a fence, for offsets up to 0.5) counts as itself, and so does any support when the offset is 1e-5 or less. Without one, it is the block at floor(position - offset).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C8" data-topic="C" data-search="c8 full cubes glass, concrete, observers, note blocks, retracted pistons, and the copper grate (assumed). glass, concrete, observers, note blocks, retracted pistons and the copper grate (assumed, b4) collide as whole 1x1x1 blocks. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C8" title="Link to C8">C8</a>
+          <h3>Full cubes</h3>
+          <span class="badge badge-part">partly assumed</span>
+        </div>
+        <p class="summary">Glass, concrete, observers, note blocks, retracted pistons, and the copper grate (assumed).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Glass, concrete, observers, note blocks, retracted pistons and the copper grate (assumed, <a href="#B4">B4</a>) collide as whole 1x1x1 blocks.</p>
+          <p class="relies">Relies on assumption <a href="#B4">B4</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="C9" data-topic="C" data-search="c9 no collision rails, levers, signs and air have no collision box. rails, levers, signs and air have no collision box. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C9" title="Link to C9">C9</a>
+          <h3>No collision</h3>
+          
+        </div>
+        <p class="summary">Rails, levers, signs and air have no collision box.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Rails, levers, signs and air have no collision box.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C10" data-topic="C" data-search="c10 honey block its box is 14/16 wide and 15/16 tall, so a cart lands on it at y + 0.9375. its box is 14/16 wide (1/16 in from every side) and 15/16 tall, so a cart landing on it rests at y + 0.9375. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C10" title="Link to C10">C10</a>
+          <h3>Honey block</h3>
+          
+        </div>
+        <p class="summary">Its box is 14/16 wide and 15/16 tall, so a cart lands on it at y + 0.9375.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Its box is 14/16 wide (1/16 in from every side) and 15/16 tall, so a cart landing on it rests at y + 0.9375.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C11" data-topic="C" data-search="c11 amethyst buds they stick out 3/4/5/7 sixteenths (small/medium/large/cluster). the medium bud&#x27;s face here is at z = 6.25. a box sticking out of the face the bud grows on, 3/16 (small), 4/16 (medium), 5/16 (large) or 7/16 (cluster) long and 8/16 (small) or 10/16 wide, centred on that face. a medium bud pointing south fills z 0..4/16 of its block, so its face is at z = 6.25 in this build. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C11" title="Link to C11">C11</a>
+          <h3>Amethyst buds</h3>
+          
+        </div>
+        <p class="summary">They stick out 3/4/5/7 sixteenths (small/medium/large/cluster). The medium bud&#x27;s face here is at z = 6.25.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A box sticking out of the face the bud grows on, 3/16 (small), 4/16 (medium), 5/16 (large) or 7/16 (cluster) long and 8/16 (small) or 10/16 wide, centred on that face. A medium bud pointing south fills z 0..4/16 of its block, so its face is at z = 6.25 in this build.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C12" data-topic="C" data-search="c12 strict overlap boxes that only touch don&#x27;t count as overlapping. two boxes that only touch do not overlap. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C12" title="Link to C12">C12</a>
+          <h3>Strict overlap</h3>
+          
+        </div>
+        <p class="summary">Boxes that only touch don&#x27;t count as overlapping.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Two boxes that only touch do not overlap.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="C13" data-topic="C" data-search="c13 solid faces only full cubes have solid side faces here. in this build only full cubes have solid side faces; air, rails, signs, levers, honey and buds don&#x27;t. physics.py">
+        <div class="rule-head">
+          <a class="rid t-C" href="#C13" title="Link to C13">C13</a>
+          <h3>Solid faces</h3>
+          
+        </div>
+        <p class="summary">Only full cubes have solid side faces here.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>In this build only full cubes have solid side faces; air, rails, signs, levers, honey and buds don&#x27;t.</p>
+          
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-H" data-topic="H" aria-labelledby="h-H">
+      <div class="topic-head">
+        <span class="letter t-H" aria-hidden="true">H</span>
+        <div>
+          <h2 id="h-H">Honey <span class="count">2</span></h2>
+          <p class="blurb">The two honey mechanics the cart runs into.</p>
+        </div>
+      </div>
+      <article class="rule" id="H1" data-topic="H" data-search="h1 speed factor after every move, horizontal speed is multiplied by the speed factor of the block the cart is in, or else the block 0.500001 below its feet. honey is 0.4, everything else 1, and it&#x27;s always 1 while the cart is in a rail block. after every move, horizontal speed is multiplied by the speed factor of the block the cart is in; if that is 1, the block 0.500001 below its feet (c7) counts instead. honey is 0.4, every other block here is 1. a cart whose position is in a rail block always gets 1. physics.py">
+        <div class="rule-head">
+          <a class="rid t-H" href="#H1" title="Link to H1">H1</a>
+          <h3>Speed factor</h3>
+          
+        </div>
+        <p class="summary">After every move, horizontal speed is multiplied by the speed factor of the block the cart is in, or else the block 0.500001 below its feet. Honey is 0.4, everything else 1, and it&#x27;s always 1 while the cart is in a rail block.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>After every move, horizontal speed is multiplied by the speed factor of the block the cart is in; if that is 1, the block 0.500001 below its feet (<a href="#C7">C7</a>) counts instead. Honey is 0.4, every other block here is 1. A cart whose position is in a rail block always gets 1.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="H2" data-topic="H" data-search="h2 honey slide an entity falling against a honey block&#x27;s side has its fall slowed to about 0.13/tick. the formula uses the gravity and drag of mobs and players, even for minecarts. an entity against a honey block&#x27;s side (its centre more than 0.4375 + half its width from the block&#x27;s centre on x or z), below the block&#x27;s top and not on the ground, whose vertical speed converted as vy / 0.98 + 0.08 is below -0.08, gets vertical speed (-0.05 - 0.08) * 0.98; if the converted speed was below -0.13, its horizontal speed is also scaled by -0.05 / (that speed). the conversion uses living-entity gravity and drag even for minecarts. physics.py">
+        <div class="rule-head">
+          <a class="rid t-H" href="#H2" title="Link to H2">H2</a>
+          <h3>Honey slide</h3>
+          
+        </div>
+        <p class="summary">An entity falling against a honey block&#x27;s side has its fall slowed to about 0.13/tick. The formula uses the gravity and drag of mobs and players, even for minecarts.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>An entity against a honey block&#x27;s side (its centre more than 0.4375 + half its width from the block&#x27;s centre on x or z), below the block&#x27;s top and not on the ground, whose vertical speed converted as vy / 0.98 + 0.08 is below -0.08, gets vertical speed (-0.05 - 0.08) * 0.98; if the converted speed was below -0.13, its horizontal speed is also scaled by -0.05 / (that speed). The conversion uses living-entity gravity and drag even for minecarts.</p>
+          <p class="relies">Relies on assumption <a href="#B7">B7</a>.</p>
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-W" data-topic="W" aria-labelledby="h-W">
+      <div class="topic-head">
+        <span class="letter t-W" aria-hidden="true">W</span>
+        <div>
+          <h2 id="h-W">Water <span class="count">7</span></h2>
+          <p class="blurb">Waterlogged blocks, water flow and the current.</p>
+        </div>
+      </div>
+      <article class="rule" id="W1" data-topic="W" data-search="w1 water sources waterlogged blocks hold a water source. the copper grate&#x27;s is a falling source; the rails&#x27; and buds&#x27; are ordinary. waterlogged blocks hold a water source. the copper grate&#x27;s water is a falling source; waterlogged rails and buds hold ordinary sources. physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W1" title="Link to W1">W1</a>
+          <h3>Water sources</h3>
+          
+        </div>
+        <p class="summary">Waterlogged blocks hold a water source. The copper grate&#x27;s is a falling source; the rails&#x27; and buds&#x27; are ordinary.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Waterlogged blocks hold a water source. The copper grate&#x27;s water is a falling source; waterlogged rails and buds hold ordinary sources.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="W2" data-topic="W" data-search="w2 water surface a source is 8/9 of a block tall, or a full block if there&#x27;s water above it. a source is 8/9 of a block tall, or a full block when the block above also holds water. physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W2" title="Link to W2">W2</a>
+          <h3>Water surface</h3>
+          
+        </div>
+        <p class="summary">A source is 8/9 of a block tall, or a full block if there&#x27;s water above it.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A source is 8/9 of a block tall, or a full block when the block above also holds water.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="W3" data-topic="W" data-search="w3 in water the cart counts as in water when its hitbox (shrunk by 0.001) reaches below a water surface. the cart is in water when its hitbox, shrunk by 0.001, reaches below the water surface of any cell it touches. the result counts from the next tick on (m5, r3, r6, r9, f1). physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W3" title="Link to W3">W3</a>
+          <h3>In water</h3>
+          
+        </div>
+        <p class="summary">The cart counts as in water when its hitbox (shrunk by 0.001) reaches below a water surface.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The cart is in water when its hitbox, shrunk by 0.001, reaches below the water surface of any cell it touches. The result counts from the next tick on (<a href="#M5">M5</a>, <a href="#R3">R3</a>, <a href="#R6">R6</a>, <a href="#R9">R9</a>, <a href="#F1">F1</a>).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="W4" data-topic="W" data-search="w4 flow water flows from higher water toward lower water next to it; a dry side with water below it counts as a drop. each side with water adds (its direction) x (own height - neighbour height); a dry side with water below it counts as a drop and adds (its direction) x (own height - (height below - 8/9)). other sides add nothing. physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W4" title="Link to W4">W4</a>
+          <h3>Flow</h3>
+          
+        </div>
+        <p class="summary">Water flows from higher water toward lower water next to it; a dry side with water below it counts as a drop.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Each side with water adds (its direction) x (own height - neighbour height); a dry side with water below it counts as a drop and adds (its direction) x (own height - (height below - 8/9)). Other sides add nothing.</p>
+          <p class="relies">Relies on assumption <a href="#B5">B5</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="W5" data-topic="W" data-search="w5 falling water falling water next to a solid face gets an extra downward push. the grate&#x27;s current is (0, −0.98639, 0.16440). if the water is falling and a side neighbour, or the block above that neighbour, has a solid face (c13), the flow is normalised, gets an extra (0, -6, 0) and is normalised again: a strong downward push. for the grate this gives (0, -0.98639, 0.16440). physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W5" title="Link to W5">W5</a>
+          <h3>Falling water</h3>
+          
+        </div>
+        <p class="summary">Falling water next to a solid face gets an extra downward push. The grate&#x27;s current is (0, −0.98639, 0.16440).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>If the water is falling and a side neighbour, or the block above that neighbour, has a solid face (<a href="#C13">C13</a>), the flow is normalised, gets an extra (0, -6, 0) and is normalised again: a strong downward push. For the grate this gives (0, -0.98639, 0.16440).</p>
+          <p class="relies">Relies on assumption <a href="#B6">B6</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="W6" data-topic="W" data-search="w6 current the current pushes the cart 0.014 block/tick in the direction of the combined flow of the water it touches. the flows of those water cells are added up (each scaled by the depth so far while that is under 0.4), and the cart is pushed 0.014 block/tick along the total&#x27;s direction; a total with squared length under 1e-5 pushes nothing. if both horizontal speeds are under 0.003 and the push is weaker than 0.0045, it is raised to 0.0045 (a minecart&#x27;s push is always 0.014, so never here). physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W6" title="Link to W6">W6</a>
+          <h3>Current</h3>
+          
+        </div>
+        <p class="summary">The current pushes the cart 0.014 block/tick in the direction of the combined flow of the water it touches.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>The flows of those water cells are added up (each scaled by the depth so far while that is under 0.4), and the cart is pushed 0.014 block/tick along the total&#x27;s direction; a total with squared length under 1e-5 pushes nothing. If both horizontal speeds are under 0.003 and the push is weaker than 0.0045, it is raised to 0.0045 (a minecart&#x27;s push is always 0.014, so never here).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="W7" data-topic="W" data-search="w7 water never moves here lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water (assumed). a lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (assumed, b8), so the water stays exactly as built. physics.py">
+        <div class="rule-head">
+          <a class="rid t-W" href="#W7" title="Link to W7">W7</a>
+          <h3>Water never moves here</h3>
+          <span class="badge badge-part">partly assumed</span>
+        </div>
+        <p class="summary">Lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water (assumed).</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>A lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (assumed, <a href="#B8">B8</a>), so the water stays exactly as built.</p>
+          <p class="relies">Relies on assumption <a href="#B8">B8</a>.</p>
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-T" data-topic="T" aria-labelledby="h-T">
+      <div class="topic-head">
+        <span class="letter t-T" aria-hidden="true">T</span>
+        <div>
+          <h2 id="h-T">The tester: piston, detector rail, armor stand <span class="count">13</span></h2>
+          <p class="blurb">The left station that checks a cart is float-aligned.</p>
+        </div>
+      </div>
+      <article class="rule" id="T1" data-topic="T" data-search="t1 piston speed a piston&#x27;s head moves 0.5 block per tick. a piston&#x27;s head moves half a block per game tick, so it takes two ticks to extend or retract. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T1" title="Link to T1">T1</a>
+          <h3>Piston speed</h3>
+          
+        </div>
+        <p class="summary">A piston&#x27;s head moves 0.5 block per tick.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>A piston&#x27;s head moves half a block per game tick, so it takes two ticks to extend or retract.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T2" data-topic="T" data-search="t2 swept area entities in the space the head moves through each tick get pushed. each tick the moving head&#x27;s plate sweeps the slab it moves through; entities in that slab are pushed. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T2" title="Link to T2">T2</a>
+          <h3>Swept area</h3>
+          
+        </div>
+        <p class="summary">Entities in the space the head moves through each tick get pushed.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>Each tick the moving head&#x27;s plate sweeps the slab it moves through; entities in that slab are pushed.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T3" data-topic="T" data-search="t3 push amount push distance = the overlap (at most 0.5) + 0.01. a pushed entity moves by its overlap with the swept slab (at most 0.5) plus 0.01. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T3" title="Link to T3">T3</a>
+          <h3>Push amount</h3>
+          
+        </div>
+        <p class="summary">Push distance = the overlap (at most 0.5) + 0.01.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>A pushed entity moves by its overlap with the swept slab (at most 0.5) plus 0.01.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T4" data-topic="T" data-search="t4 push limit pistons move an entity at most 0.51 per axis per tick. pistons move an entity at most 0.51 per axis in one game tick (a running total). piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T4" title="Link to T4">T4</a>
+          <h3>Push limit</h3>
+          
+        </div>
+        <p class="summary">Pistons move an entity at most 0.51 per axis per tick.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>Pistons move an entity at most 0.51 per axis in one game tick (a running total).</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T5" data-topic="T" data-search="t5 base yank an entity still overlapping a retracting piston&#x27;s base, even by 1e-5, is pulled back up to 0.51. if an entity still overlaps a retracting piston&#x27;s base block (even by just 1e-5) without sticking out of its far side, it is moved back against the head&#x27;s motion by min(its reach into the base + 0.01, 0.5) + 0.01. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T5" title="Link to T5">T5</a>
+          <h3>Base yank</h3>
+          
+        </div>
+        <p class="summary">An entity still overlapping a retracting piston&#x27;s base, even by 1e-5, is pulled back up to 0.51.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>If an entity still overlaps a retracting piston&#x27;s base block (even by just 1e-5) without sticking out of its far side, it is moved back against the head&#x27;s motion by min(its reach into the base + 0.01, 0.5) + 0.01.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T6" data-topic="T" data-search="t6 effects after a push after any piston push, even one that moves nothing, the entity&#x27;s block effects run. that&#x27;s how the armor stand triggers the detector rail. after a piston push, even one that moves nothing, the entity&#x27;s inside-block effects run. that is how the armor stand makes the detector rail look for carts. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T6" title="Link to T6">T6</a>
+          <h3>Effects after a push</h3>
+          
+        </div>
+        <p class="summary">After any piston push, even one that moves nothing, the entity&#x27;s block effects run. That&#x27;s how the armor stand triggers the detector rail.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>After a piston push, even one that moves nothing, the entity&#x27;s inside-block effects run. That is how the armor stand makes the detector rail look for carts.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T7" data-topic="T" data-search="t7 detector rail it looks for minecarts only, 0.2 in from its sides and 0.2 below its top. while pressed, it rechecks every 20 ticks. when an entity inside an unpowered detector rail triggers it, it looks for minecarts only, in the box 0.2 in from the block&#x27;s sides and 0.2 below its top ((1.2-1.8, 2.0-2.8, 1.2-1.8) here); while pressed it re-checks every 20 ticks. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T7" title="Link to T7">T7</a>
+          <h3>Detector rail</h3>
+          
+        </div>
+        <p class="summary">It looks for minecarts only, 0.2 in from its sides and 0.2 below its top. While pressed, it rechecks every 20 ticks.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>When an entity inside an unpowered detector rail triggers it, it looks for minecarts only, in the box 0.2 in from the block&#x27;s sides and 0.2 below its top ((1.2-1.8, 2.0-2.8, 1.2-1.8) here); while pressed it re-checks every 20 ticks.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T8" data-topic="T" data-search="t8 processing order entities in the same area are processed in storage order, so the cart moves before the armor stand. entities in the same section are handled in storage order, so the cart is pushed before the armor stand triggers the detector. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T8" title="Link to T8">T8</a>
+          <h3>Processing order</h3>
+          
+        </div>
+        <p class="summary">Entities in the same area are processed in storage order, so the cart moves before the armor stand.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>Entities in the same section are handled in storage order, so the cart is pushed before the armor stand triggers the detector.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T9" data-topic="T" data-search="t9 armor stand 0.5 wide × 1.975 tall. it can&#x27;t be pushed, and it never touches the cart. its hitbox is 0.5 wide and 1.975 tall; other entities can&#x27;t push it, and it pushes only rideable minecarts within squared distance 0.2, so it never touches the cart. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T9" title="Link to T9">T9</a>
+          <h3>Armor stand</h3>
+          
+        </div>
+        <p class="summary">0.5 wide × 1.975 tall. It can&#x27;t be pushed, and it never touches the cart.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>Its hitbox is 0.5 wide and 1.975 tall; other entities can&#x27;t push it, and it pushes only rideable minecarts within squared distance 0.2, so it never touches the cart.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T10" data-topic="T" data-search="t10 scaffolding scaffolding only blocks entities above it. collides only with entities above it; from the side the cart passes through it. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T10" title="Link to T10">T10</a>
+          <h3>Scaffolding</h3>
+          
+        </div>
+        <p class="summary">Scaffolding only blocks entities above it.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>Collides only with entities above it; from the side the cart passes through it.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T11" data-topic="T" data-search="t11 piston head the plate is 4/16 thick. on the second retraction tick it sweeps x 1.75–2.25. the plate is a full 16x16 face, 4/16 thick. on retraction tick 2 it sits half a block out, sweeping x 1.75-2.25 at y 2-3. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T11" title="Link to T11">T11</a>
+          <h3>Piston head</h3>
+          
+        </div>
+        <p class="summary">The plate is 4/16 thick. On the second retraction tick it sweeps x 1.75–2.25.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>The plate is a full 16x16 face, 4/16 thick. On retraction tick 2 it sits half a block out, sweeping x 1.75-2.25 at y 2-3.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="T12" data-topic="T" data-search="t12 wall a wall post is 8/16 wide and 1.5 blocks tall for collisions, so it stops the cart at minx 1.75. a wall post is 8/16 wide and 1.5 blocks tall for collisions, so the post at (1,0,1) stops the pulled-back cart at minx = 1.75. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T12" title="Link to T12">T12</a>
+          <h3>Wall</h3>
+          <span class="badge badge-full">assumed</span>
+        </div>
+        <p class="summary">A wall post is 8/16 wide and 1.5 blocks tall for collisions, so it stops the cart at minX 1.75.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>A wall post is 8/16 wide and 1.5 blocks tall for collisions, so the post at (1,0,1) stops the pulled-back cart at minX = 1.75.</p>
+          <p class="relies">Relies on assumption <a href="#A7">A7</a>.</p>
+        </details>
+      </article>
+      <article class="rule" id="T13" data-topic="T" data-search="t13 trigger changing the note block makes the observer pulse the piston; the exact timing doesn&#x27;t matter. changing the note block makes the observer pulse the piston (out, then back). the exact pulse timing doesn&#x27;t matter: an unfinished extension is completed before the retraction starts. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-T" href="#T13" title="Link to T13">T13</a>
+          <h3>Trigger</h3>
+          <span class="badge badge-full">assumed</span>
+        </div>
+        <p class="summary">Changing the note block makes the observer pulse the piston; the exact timing doesn&#x27;t matter.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>Changing the note block makes the observer pulse the piston (out, then back). The exact pulse timing doesn&#x27;t matter: an unfinished extension is completed before the retraction starts.</p>
+          <p class="relies">Relies on assumption <a href="#A5">A5</a>.</p>
+        </details>
+      </article>
+    </section>
+    <section class="topic" id="topic-X" data-topic="X" aria-labelledby="h-X">
+      <div class="topic-head">
+        <span class="letter t-X" aria-hidden="true">X</span>
+        <div>
+          <h2 id="h-X">Exact numbers <span class="count">4</span></h2>
+          <p class="blurb">Float rounding, epsilons and the floatcart window itself.</p>
+        </div>
+      </div>
+      <article class="rule" id="X1" data-topic="X" data-search="x1 floats values the game stores as 32-bit floats (0.98, 0.7, 0.4, 0.95, 1e-5 …) are rounded to float precision. numbers the game keeps as 32-bit floats (0.98, 0.7, 0.4, 0.95, 1e-5, ...) are rounded to float precision before they are used with doubles. oldcart.py">
+        <div class="rule-head">
+          <a class="rid t-X" href="#X1" title="Link to X1">X1</a>
+          <h3>Floats</h3>
+          
+        </div>
+        <p class="summary">Values the game stores as 32-bit floats (0.98, 0.7, 0.4, 0.95, 1e-5 …) are rounded to float precision.</p>
+        <details>
+          <summary>Full rule <span class="src">oldcart.py</span></summary>
+          <p>Numbers the game keeps as 32-bit floats (0.98, 0.7, 0.4, 0.95, 1e-5, ...) are rounded to float precision before they are used with doubles.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="X2" data-topic="X" data-search="x2 block-effect shrink block-effect checks use the hitbox shrunk by 1e-5. inside-block checks use the hitbox shrunk by 1e-5 on every side. physics.py">
+        <div class="rule-head">
+          <a class="rid t-X" href="#X2" title="Link to X2">X2</a>
+          <h3>Block-effect shrink</h3>
+          
+        </div>
+        <p class="summary">Block-effect checks use the hitbox shrunk by 1e-5.</p>
+        <details>
+          <summary>Full rule <span class="src">physics.py</span></summary>
+          <p>Inside-block checks use the hitbox shrunk by 1e-5 on every side.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="X3" data-topic="X" data-search="x3 floatcart window the y-fraction must be strictly between 0.30000001192092896 and 0.30001001192067633. there, overlap tests see the cart touching the block above, but block-effect checks don&#x27;t. a cart is float-aligned when its top pokes above a block boundary by less than 1e-5: y-fraction strictly between 0.30000001192092896 and 0.30001001192067633. exact overlap tests (c12) then see it touching the block above, but inside-block checks (x2) don&#x27;t. piston_rig.py">
+        <div class="rule-head">
+          <a class="rid t-X" href="#X3" title="Link to X3">X3</a>
+          <h3>Floatcart window</h3>
+          
+        </div>
+        <p class="summary">The y-fraction must be strictly between 0.30000001192092896 and 0.30001001192067633. There, overlap tests see the cart touching the block above, but block-effect checks don&#x27;t.</p>
+        <details>
+          <summary>Full rule <span class="src">piston_rig.py</span></summary>
+          <p>A cart is float-aligned when its top pokes above a block boundary by less than 1e-5: y-fraction strictly between 0.30000001192092896 and 0.30001001192067633. Exact overlap tests (<a href="#C12">C12</a>) then see it touching the block above, but inside-block checks (<a href="#X2">X2</a>) don&#x27;t.</p>
+          
+        </details>
+      </article>
+      <article class="rule" id="X4" data-topic="X" data-search="x4 placement the last digits can depend on where the build sits in the world, so recipes are checked at several positions. results can differ in the last bits depending on where the build sits in the world (the as-built attempt matches bit for bit at |z| 128-256), so every recipe is checked at several placements. verify_lever_solution.py">
+        <div class="rule-head">
+          <a class="rid t-X" href="#X4" title="Link to X4">X4</a>
+          <h3>Placement</h3>
+          
+        </div>
+        <p class="summary">The last digits can depend on where the build sits in the world, so recipes are checked at several positions.</p>
+        <details>
+          <summary>Full rule <span class="src">verify_lever_solution.py</span></summary>
+          <p>Results can differ in the last bits depending on where the build sits in the world (the as-built attempt matches bit for bit at |z| 128-256), so every recipe is checked at several placements.</p>
+          
+        </details>
+      </article>
+    </section>
+    <p class="empty" id="empty" hidden>No rule matches that search.</p>
+
+    <section class="assumptions" id="assumptions" aria-labelledby="h-assumptions">
+      <h2 id="h-assumptions">What's assumed</h2>
+      <p class="blurb">The game files for these are not in the project, so they could not be checked against source. The bit-for-bit match with the creator's stored attempt is consistent with all of them.</p>
+      <ul>
+        <li id="B1"><span class="alab">B1</span> Axis order: vertical first, then the bigger horizontal move. <span class="used">Used by <a href="#C1">C1</a>.</span></li>
+        <li id="B2"><span class="alab">B2</span> The order blocks are tested in (x fastest, then y, then z). It only changes results below 1e-7. <span class="used">Used by <a href="#C2">C2</a>.</span></li>
+        <li id="B3"><span class="alab">B3</span> Glass, honey, the grate and buds make nothing bounce. <span class="used">Used by <a href="#C5">C5</a>.</span></li>
+        <li id="B4"><span class="alab">B4</span> The copper grate collides as a full cube. <span class="used">Used by <a href="#C8">C8</a>.</span></li>
+        <li id="B5"><span class="alab">B5</span> Air and rails don&#x27;t block water flow. Whether glass does changes nothing here. <span class="used">Used by <a href="#W4">W4</a>.</span></li>
+        <li id="B6"><span class="alab">B6</span> A flow vector shorter than 1e-5 counts as zero. <span class="used">Used by <a href="#W5">W5</a>.</span></li>
+        <li id="B7"><span class="alab">B7</span> A block&#x27;s &quot;inside&quot; space is the whole block. <span class="used">Used by <a href="#H2">H2</a>.</span></li>
+        <li id="B8"><span class="alab">B8</span> Rails accept only source water, never flowing water. <span class="used">Used by <a href="#W7">W7</a>.</span></li>
+        <li id="A5"><span class="alab">A5</span> Observer and note block timing. The test&#x27;s outcome doesn&#x27;t depend on it. <span class="used">Used by <a href="#T13">T13</a>.</span></li>
+        <li id="A7"><span class="alab">A7</span> Wall collision: a post 8/16 wide and 1.5 blocks tall. <span class="used">Used by <a href="#T12">T12</a>.</span></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer>
+    <p>Generated from the simulator's code, where each rule sits next to the code that applies it. Minecraft Java Edition 26.2 (data version 4903), classic minecart engine.</p>
+    <p>Build: “vertical floatcart challenge” by FarCoolHat.</p>
+    <p>Not an official Minecraft product. Not approved by or associated with Mojang or Microsoft.</p>
+  </footer>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var root = document.documentElement;
+
+  /* theme button: follows the system until clicked, then remembers the choice
+     (the saved choice is applied by the small script in <head>) */
+  var KEY = 'floatcart-rules-theme', themeBtn = document.getElementById('theme');
+  function isDark() {
+    var t = root.getAttribute('data-theme');
+    if (t) return t === 'dark';
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+  function syncTheme() {
+    var dark = isDark();
+    themeBtn.querySelector('.label').textContent = dark ? 'Light mode' : 'Dark mode';
+    themeBtn.setAttribute('aria-label', dark ? 'Switch to light mode' : 'Switch to dark mode');
+    themeBtn.setAttribute('aria-pressed', String(dark));
+  }
+  themeBtn.addEventListener('click', function () {
+    var next = isDark() ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem(KEY, next); } catch (e) { /* ignore */ }
+    syncTheme();
+  });
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: dark)');
+    if (mq.addEventListener) mq.addEventListener('change', syncTheme);
+  }
+  syncTheme();
+
+  /* search and topic filter */
+  var q = document.getElementById('q');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var rules = Array.prototype.slice.call(document.querySelectorAll('.rule'));
+  var topics = Array.prototype.slice.call(document.querySelectorAll('.topic'));
+  var empty = document.getElementById('empty'), status = document.getElementById('status');
+  var topic = 'all';
+  function apply() {
+    var terms = q.value.trim().toLowerCase().split(/\s+/).filter(Boolean), n = 0;
+    rules.forEach(function (r) {
+      var ok = (topic === 'all' || r.getAttribute('data-topic') === topic) &&
+        terms.every(function (t) { return r.getAttribute('data-search').indexOf(t) !== -1; });
+      r.hidden = !ok;
+      if (ok) n++;
+    });
+    topics.forEach(function (s) { s.hidden = !s.querySelector('.rule:not([hidden])'); });
+    empty.hidden = n !== 0;
+    status.textContent = n === rules.length ? 'Showing all ' + n + ' rules' : 'Showing ' + n + ' of ' + rules.length + ' rules';
+  }
+  function setTopic(t) {
+    topic = t;
+    chips.forEach(function (c) { c.setAttribute('aria-pressed', String(c.getAttribute('data-topic') === t)); });
+    apply();
+  }
+  q.addEventListener('input', apply);
+  chips.forEach(function (c) { c.addEventListener('click', function () { setTopic(c.getAttribute('data-topic')); }); });
+
+  /* expand / collapse every "Full rule" */
+  var expand = document.getElementById('expand');
+  var details = Array.prototype.slice.call(document.querySelectorAll('.rule details'));
+  expand.addEventListener('click', function () {
+    var open = expand.getAttribute('aria-pressed') !== 'true';
+    details.forEach(function (d) { d.open = open; });
+    expand.setAttribute('aria-pressed', String(open));
+    expand.textContent = open ? 'Collapse all' : 'Expand all';
+  });
+  window.addEventListener('beforeprint', function () { details.forEach(function (d) { d.open = true; }); });
+
+  /* following a link to a rule that the filter hides: clear the filter first */
+  function reveal() {
+    var id = decodeURIComponent(location.hash.slice(1));
+    var el = id ? document.getElementById(id) : null;
+    if (!el) return;
+    var sec = el.closest ? el.closest('.topic') : null;
+    if (el.hidden || (sec && sec.hidden)) {
+      q.value = '';
+      setTopic('all');
+      el.scrollIntoView();
+    }
+  }
+  window.addEventListener('hashchange', reveal);
+
+  /* keep links to a rule clear of the sticky toolbar, whatever its height */
+  var toolbar = document.querySelector('.toolbar');
+  function pad() { root.style.scrollPaddingTop = (toolbar.offsetHeight + 12) + 'px'; }
+  window.addEventListener('resize', pad);
+  pad();
+
+  /* "/" jumps to the search box */
+  document.addEventListener('keydown', function (e) {
+    var tag = (document.activeElement && document.activeElement.tagName) || '';
+    if (e.key === '/' && !/INPUT|TEXTAREA|SELECT/.test(tag)) { e.preventDefault(); q.focus(); }
+  });
+
+  apply();
+  reveal();
+})();
+</script>
+</body>
+</html>
