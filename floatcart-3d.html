@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vertical floatcart challenge in 3D · Minecraft Java 26.2</title>
+<meta name="description" content="Interactive 3D view of FarCoolHat's vertical floatcart challenge in Minecraft Java 26.2, with the minecart simulated tick by tick: FarCoolHat's attempt and 07km's lever-timing solution.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="site.css">
+</head>
+<body>
+<div class="topbar">
+  <div class="wrap full bar">
+    <a class="wordmark" href="floatcart-3d.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <nav aria-label="Pages"><a href="floatcart-3d.html" aria-current="page">Challenge</a><a href="floatcart-makers-3d.html">Makers</a><a href="floatcart-finder.html">Finder</a><a href="floatcart-simulator-rules.html">Rules</a></nav>
+    <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+</div>
+<div class="wrap full">
+<header class="site compact">
+  <h1>The vertical floatcart challenge</h1>
+  <p class="sub">FarCoolHat's build and the cart that solves it, simulated tick by tick.</p>
+</header>
+</div>
+<div class="viewer">
+  <div class="stage" id="stage">
+    <canvas id="gl" tabindex="0" aria-label="3D view of the floatcart challenge build. Drag to turn, scroll to zoom."></canvas>
+    <div id="labels" aria-hidden="true"></div>
+    <div id="tip" role="status" aria-live="polite"></div>
+    <div class="stage-top">
+      <div class="toggles" role="group" aria-label="Show in the scene">
+        <label class="toggle"><input type="checkbox" id="tPaths" checked><span>Paths</span></label>
+        <label class="toggle"><input type="checkbox" id="tDots" checked><span>Tick dots</span></label>
+        <label class="toggle"><input type="checkbox" id="tLabels" checked><span>Labels</span></label>
+        <label class="toggle"><input type="checkbox" id="tFollow"><span>Follow cart</span></label>
+      </div>
+      <button class="btn sm glass-btn" id="resetView" type="button">Reset<span class="long">view</span></button>
+    </div>
+    <p class="stage-hint">Drag to turn &#183; Shift-drag to pan &#183; Scroll to zoom &#183; Hover a block</p>
+    <div class="transport">
+      <button class="btn ghost sm icon" id="back" type="button" aria-label="Previous tick" title="Previous tick (&#8592;)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <button class="btn primary sm play" id="play" type="button" aria-label="Play"><svg class="i-play" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 2.6v10.8L13.2 8z" fill="currentColor"/></svg><svg class="i-pause" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.8h3v10.4H4zM9 2.8h3v10.4H9z" fill="currentColor"/></svg></button>
+      <button class="btn ghost sm icon" id="fwd" type="button" aria-label="Next tick" title="Next tick (&#8594;)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="scrub"><div class="marks" id="marks" aria-hidden="true"></div><input type="range" id="tick" min="0" max="80" step="1" value="0" aria-label="Game tick"></div>
+      <span class="tickread" aria-label="Tick"><b id="tickNum">0</b> / <span id="tickMax">0</span></span>
+      <select id="speed" aria-label="Playback speed" title="Playback speed; 1&times; is 20 ticks a second"><option value="0.25">&#188;&times;</option><option value="0.5" selected>&#189;&times;</option><option value="1">1&times;</option></select>
+    </div>
+    <div id="noGL" hidden>This browser couldn't start WebGL, so the 3D view is unavailable. The run data beside it still works.</div>
+  </div>
+  <aside class="inspector" aria-label="Run and result">
+    <section class="insp">
+      <div class="seg" role="tablist" aria-label="Which run">
+        <button type="button" role="tab" data-run="built" aria-selected="true"><span class="dot" style="--c: var(--run)"></span>As built</button>
+        <button type="button" role="tab" data-run="solution" aria-selected="false"><span class="dot" style="--c: var(--sol)"></span>Lever solution</button>
+      </div>
+      <p class="desc" id="runDesc"></p>
+    </section>
+    <section class="insp">
+      <div class="lab">Final y fraction</div>
+      <div class="big" id="fin"></div>
+      <div class="meter" id="meter" aria-hidden="true">
+        <div class="meter-track"><div class="meter-win"></div><div class="meter-mk"></div><div class="meter-off" hidden></div></div>
+        <div class="meter-scale"><span></span><span></span></div>
+      </div>
+      <p class="verdict" id="verdict"></p>
+    </section>
+    <section class="insp">
+      <div class="now-head"><span class="lab">This tick</span><span class="pill" id="lever">Lower lever on</span></div>
+      <p class="phase" id="phase"></p>
+      <div class="rchips" id="phaseRules"></div>
+      <dl class="vals"><dt>y</dt><dd id="vY"></dd><dt>z</dt><dd id="vZ"></dd><dt>z speed</dt><dd id="vV"></dd></dl>
+    </section>
+    <section class="insp">
+      <details class="more">
+        <summary>About this view</summary>
+        <p>Blocks and entities come straight from the challenge's schematic; x runs east, z south. On the left, the floatcart tester (note block, observer, piston and detector rail). On the right, the station you launch from the top rail.</p>
+        <p>The cart is simulated with Java 26.2's classic minecart physics, and each tick lists the rules it uses. The as-built run ends on exactly the number FarCoolHat's stored cart has. The outline around a cart is its 0.98 &times; 0.7 hitbox.</p>
+        <p>Gold rails are powered. In the lever solution, the two lower ones go dark on the ticks the lever is off.</p>
+      </details>
+    </section>
+  </aside>
+</div>
+<footer class="site-foot">
+  <div class="wrap full">
+    <p><strong>07km</strong> &mdash; solution, search, schematics. Claude for visualization.</p>
+    <p>Build: &ldquo;vertical floatcart challenge&rdquo; by FarCoolHat. Java Edition 26.2, classic minecart engine. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</p>
+  </div>
+</footer>
+<script src="site.js"></script>
+<script src="scene3d.js"></script>
+<script src="player.js"></script>
+<script>
+(function () {
+  'use strict';
+  var D = {"blocks":[[1,0,1,"polished_deepslate_wall",{"east":"none","north":"none","south":"low","up":"true","waterlogged":"false","west":"none"}],[1,0,2,"white_stained_glass",{}],[2,0,2,"white_stained_glass",{}],[2,0,7,"white_stained_glass",{}],[2,0,8,"white_stained_glass",{}],[2,0,9,"white_stained_glass",{}],[1,1,1,"scaffolding",{"bottom":"true","distance":"1","waterlogged":"false"}],[1,1,2,"scaffolding",{"bottom":"false","distance":"0","waterlogged":"false"}],[2,1,2,"powered_rail",{"powered":"false","shape":"ascending_south","waterlogged":"false"}],[3,1,2,"white_stained_glass",{}],[1,1,3,"cherry_wall_sign",{"facing":"west","waterlogged":"false"}],[2,1,3,"white_stained_glass",{}],[2,1,6,"white_stained_glass",{}],[2,1,7,"powered_rail",{"powered":"true","shape":"ascending_north","waterlogged":"false"}],[1,1,8,"white_stained_glass",{}],[2,1,8,"rail",{"shape":"north_south","waterlogged":"true"}],[3,1,8,"white_stained_glass",{}],[2,1,9,"powered_rail",{"powered":"false","shape":"ascending_south","waterlogged":"false"}],[1,1,10,"cherry_wall_sign",{"facing":"west","waterlogged":"false"}],[2,1,10,"white_concrete",{}],[2,2,0,"note_block",{"instrument":"harp","note":"0","powered":"false"}],[1,2,1,"detector_rail",{"powered":"false","shape":"north_south","waterlogged":"false"}],[2,2,1,"observer",{"facing":"north","powered":"false"}],[0,2,2,"white_stained_glass",{}],[2,2,2,"piston",{"extended":"false","facing":"west"}],[1,2,5,"lever",{"face":"wall","facing":"west","powered":"true"}],[2,2,5,"white_concrete",{}],[2,2,6,"powered_rail",{"powered":"true","shape":"ascending_north","waterlogged":"false"}],[2,2,7,"waxed_oxidized_copper_grate",{"waterlogged":"true"}],[3,2,7,"white_stained_glass",{}],[2,3,6,"honey_block",{}],[2,5,5,"white_stained_glass",{}],[2,5,6,"medium_amethyst_bud",{"facing":"south","waterlogged":"false"}],[2,5,8,"white_stained_glass",{}],[2,6,8,"powered_rail",{"powered":"true","shape":"ascending_south","waterlogged":"false"}],[1,6,9,"lever",{"face":"wall","facing":"west","powered":"true"}],[2,6,9,"white_concrete",{}]],"signs":{"1,1,3":["y = [0.3,0.30001]","the correct","alignment"],"1,1,10":["y = 0.29672","close, but not","good enough"]},"carts":[[2.5,1.2967236180145676,9.234223618014568],[2.5,1.3000099999999861,2.237509999999986]],"stand":[1.75,2.0,1.8100000000000023],"runs":{"built":{"y":[6.5625,6.5546875,6.5389843750000125,6.455311718750011,6.302989835937524,6.0813322342968945,6.0,6.0,5.98,5.921000000238419,5.824950001168252,5.693702503196597,5.529017381688118,5.332566518218263,5.105938200263777,4.850641300908635,4.568109249564627,4.259703804155864,3.9375,2.314687490463257,2.307432779596269,2.3005594397001516,2.2938442924830724,2.2871947635893832,2.2805724531762905,2.2739614329889832,2.267355095987341,2.260750701571112,2.2541471129393074,2.2475438585468908,2.2409407427969654,2.2343376845559533,2.2277346501696513,2.221131625678254,2.2145286052912923,2.207925586606848,2.2013225686285978,2.1947195509432618,2.188116533379457,2.181513515866044,2.174910498373549,2.168307480889723,2.161704463409478,2.1551014459307396,2.1484984284526263,2.1418954109747688,2.1352923934969965,2.128689376019281,2.122086358541594,2.115483341063907,2.10888032358622,2.102277306108533,2.095674288630846,2.089071271153159,2.082468253675472,2.075865236197785,2.069262218720098,2.062659201242411,2.056056183764724,2.0458399952044886,2.0321479361041668,1.9551120895840768,1.8171395202910787,1.6205458243879036,1.420545824387915,1.2205458243879264,1.0625,1.0625,1.0625,1.0625,1.0625,1.1044541756120054,1.2245514951463576,1.275532189178449,1.2967236180145676,1.2967236180145676],"z":[8.5,8.4921875,8.476484375000013,8.39281171875001,8.240489835937524,8.018832234296895,7.727145556639869,7.387126346089133,7.217116740813765,7.0556076178288265,6.902173952918474,6.75641197308272,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.747812509536743,6.755067220403731,6.761940560299848,6.768655707516928,6.775305236410617,6.7819275468237095,6.788538567011017,6.795144904012659,6.801749298428888,6.808352887060693,6.814956141453109,6.821559257203035,6.828162315444047,6.834765349830349,6.841368374321746,6.847971394708708,6.854574413393152,6.861177431371402,6.867780449056738,6.874383466620543,6.880986484133956,6.887589501626451,6.894192519110277,6.900795536590522,6.90739855406926,6.914001571547374,6.920604589025231,6.9272076065030035,6.933810623980719,6.940413641458406,6.947016658936093,6.95361967641378,6.960222693891467,6.966825711369154,6.973428728846841,6.980031746324528,6.986634763802215,6.993237781279902,6.999840798757589,7.006443816235276,7.016660004795511,7.030352063895833,7.107387910415923,7.245360479708921,7.441954175612096,7.641954175612085,7.841954175612074,8.041954175612062,8.241954175612051,8.44195417561204,8.641954175612028,8.841954175612017,9.041954175612005,9.162051495146358,9.213032189178449,9.234223618014568,9.234223618014568],"vz":[0.0,-0.0078906,-0.0758602,-0.1445094,-0.2138451,-0.2838742,-0.3400192,-0.3400192,-0.1615091,-0.1534337,-0.145762,-0.1384739,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0056922,0.0053108,0.0051526,0.005087,0.0050598,0.0050485,0.0050438,0.0050419,0.0050411,0.0050408,0.0050406,0.0050406,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0086537,0.0121296,0.0754733,0.1364101,0.1950312,0.2514247,0.3030259,0.3477846,0.3865069,0.3524943,0.3214748,0.293185,0.2673847,0.2417571,0.1035239,0.0439454,0.018267,0.0],"lever":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],"ph":[0,1,1,1,1,1,1,2,3,3,3,3,4,5,5,5,5,5,6,7,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,9,9,9,9,9,9,10,10,10,10,10,11,11,11,12],"off":[],"final_y":1.2967236180145676,"final_z":9.234223618014568,"yfrac":0.2967236180145676,"inside":false},"solution":{"y":[6.5625,6.5546875,6.5389843750000125,6.455311718750011,6.302989835937524,6.0813322342968945,6.0,6.0,5.98,5.921000000238419,5.824950001168252,5.693702503196597,5.529017381688118,5.332566518218263,5.105938200263777,4.850641300908635,4.568109249564627,4.259703804155864,3.9375,2.322499990463257,2.318635904640985,2.3131689960163158,2.307037236491823,2.3006296968135302,2.294107763527194,2.287538379772144,2.280949313562644,2.280949313562644,2.277085227740372,2.271618319115703,2.26548655959121,2.2590790199129174,2.252557086626581,2.245987702871531,2.239398636662031,2.2328014061704096,2.2262007891345377,2.219598767360111,2.21299616290014,2.206393316742208,2.199790370327946,2.1931873823273804,2.186584377076798,2.1799813646709083,2.1733783492969962,2.1667753326919694,2.1601723155762613,2.1535692982487262,2.146966280833311,2.1403632633814595,2.1337602459144875,2.1271572284412343,2.1205542109653948,2.113951193488475,2.107348176011101,2.100745158533556,2.0941421410559258,2.087539123578267,2.08093610610058,2.0743330886228932,2.0677300711452062,2.0611270536675192,2.0509108651072836,2.037218806006962,1.998700882746931,1.9577825551893113,1.8545550387248682,1.6913860832451348,1.4913860832451462,1.3537543672759682,1.2174885722664044,1.0625,1.0625,1.0625,1.0625,1.0625,1.0625,1.2068389154281363,1.272488583843682,1.3000023405551246,1.3000023405551246],"z":[8.5,8.4921875,8.476484375000013,8.39281171875001,8.240489835937524,8.018832234296895,7.727145556639869,7.387126346089133,7.217116740813765,7.0556076178288265,6.902173952918474,6.75641197308272,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.740000009536743,6.743864095359015,6.749331003983684,6.755462763508177,6.76187030318647,6.768392236472806,6.774961620227856,6.781550686437356,6.781550686437356,6.785414772259628,6.790881680884297,6.79701344040879,6.803420980087083,6.809942913373419,6.816512297128469,6.823101363337969,6.82969859382959,6.836299210865462,6.842901232639889,6.84950383709986,6.856106683257792,6.862709629672054,6.86931261767262,6.875915622923202,6.882518635329092,6.889121650703004,6.895724667308031,6.902327684423739,6.908930701751274,6.915533719166689,6.9221367366185405,6.9287397540855125,6.935342771558766,6.941945789034605,6.948548806511525,6.955151823988899,6.961754841466444,6.968357858944074,6.974960876421733,6.98156389389942,6.988166911377107,6.994769928854794,7.001372946332481,7.011589134892716,7.025281193993038,7.063799117253069,7.104717444810689,7.207944961275132,7.371113916754865,7.571113916754854,7.708745632724032,7.845011427733596,8.037661620973353,8.237661620973341,8.43766162097333,8.637661620973319,8.822328011286288,8.990743757138375,9.144338915428136,9.209988583843682,9.237502340555125,9.237502340555125],"vz":[0.0,-0.0078906,-0.0758602,-0.1445094,-0.2138451,-0.2838742,-0.3400192,-0.3400192,-0.1615091,-0.1534337,-0.145762,-0.1384739,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0023016,0.0039044,0.0045693,0.004845,0.0049594,0.0050069,0.0050266,0.0050347,0.0023016,0.0039044,0.0045693,0.004845,0.0049594,0.0050069,0.0050266,0.0050347,0.0050381,0.0050395,0.0050401,0.0050403,0.0050404,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0050405,0.0086537,0.0121296,0.0754733,0.0393558,0.101665,0.1616065,0.2192701,0.2737009,0.1347033,0.1910877,0.2434464,0.2220231,0.2024851,0.1846664,0.1684157,0.1535952,0.1328618,0.05659,0.0237169,0.0],"lever":[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1,1,0,1,1,1,1,1,1,1,1,1,1,1],"ph":[0,1,1,1,1,1,1,2,3,3,3,3,4,5,5,5,5,5,6,13,8,8,8,8,8,8,8,14,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,9,9,15,9,9,9,9,15,9,9,10,10,10,10,10,10,11,11,12],"off":[19,27,64,69],"final_y":1.3000023405551246,"final_z":9.237502340555125,"yfrac":0.30000234055512465,"inside":true}},"phases":["Minecart placed on the top rail (2,6,8)","Top rail (2,6,8): powered, boosts it north","Leaves the rail, still resting on glass (2,5,8) for a tick: speed \u00d70.5","Airborne, flying north","Stops dead against the medium bud's south face (z = 6.25)","Falls straight down","Lands on top of the honey block (15/16 tall)","Honey rail-snap: finds rail (2,2,6) under the honey and drops onto it","Creeping under the honey: speed \u00d70.4, the grate's falling water pushes it south","Lower slope (2,1,7): powered, boosts it south","Waterlogged rail (2,1,8): in water, each move is capped at 0.2 blocks","Braking slope (2,1,9): unpowered, so it acts as a halt rail and brakes the cart","Stopped","Honey rail-snap: finds rail (2,2,6) under the honey and drops onto it; lever off, so the halt rail zeroes its speed","Lever off: rail (2,2,6) becomes a halt rail and zeroes its speed","Lever off: rail (2,1,7) becomes a halt rail and halves its speed"],"window":[0.30000001192092896,0.30001001192067633],"phaseRules":[["M3","R2"],["R3","P1","R4","R8"],["M6","F2"],["M5","F1","F3"],["C11","C5"],["M5","F3"],["C10","C6"],["M6","R5","R2"],["R5","H1","W5","W6"],["R3","P1","R10"],["R6","W3","R9"],["P3","R10"],["R2","X3"],["M6","R5","P3","P5"],["P3","P5"],["P3","P6"]],"ruleNames":{"C10":"Honey block","C11":"Amethyst buds","C5":"No bounce","C6":"On the ground","F1":"Speed cap","F2":"Ground friction","F3":"Air drag","H1":"Speed factor","M3":"Placing","M5":"Gravity","M6":"Rail lookup","P1":"Boost","P3":"Halt rail","P5":"Lever","P6":"Rail power chain","R10":"Height and speed","R2":"Height on the track","R3":"Slope pull","R4":"Steering","R5":"Centring","R6":"Move cap","R8":"Rail friction","R9":"Water drag","W3":"In water","W5":"Falling water","W6":"Current","X3":"Floatcart window"}};
+  var RULES = 'floatcart-simulator-rules.html';
+  var RUN_TEXT = {
+    built: 'FarCoolHat’s attempt: launch from the top rail with both levers on. It stops at the stored cart’s exact position.',
+    solution: '07km’s solution. Same launch, no block changes: the lower lever is off for <b>exactly one tick</b> at ticks 19, 27, 64 and 69 (use /tick freeze and /tick step, with the cart placed at tick 0).'
+  };
+  // what each block does, shown when it is hovered
+  var NOTES = {
+    '2,6,8': 'Launch rail: place the minecart here (tick 0).',
+    '1,6,9': 'Top lever: powers the launch rail.',
+    '2,5,6': 'Its south face (z = 6.25) stops the flying cart dead.',
+    '2,3,6': 'The cart lands on it, then snaps down to the rail underneath.',
+    '2,2,6': 'Under the honey: the cart creeps here at ×0.4 speed.',
+    '2,2,7': 'Its water is a falling source: the current pushes the cart south and down.',
+    '2,1,7': 'Lower slope: boosts the cart south while powered.',
+    '2,1,8': 'In water, each move is capped at 0.2 blocks.',
+    '2,1,9': 'Unpowered, so it brakes the cart. The stop position sets the result.',
+    '1,2,5': 'Lower lever: powers (2,2,6) and (2,1,7). Off = halt rails.',
+    '2,2,0': 'Change its note to fire the tester.',
+    '2,2,1': 'Sees the note block change and pulses the piston.',
+    '2,2,2': 'On retraction, its head catches a cart whose top is above y = 2.',
+    '1,2,1': 'Lights if the tested cart gets pulled into its detection box.',
+    '1,0,1': 'The 1.5-tall post stops the tested cart’s sideways pull.',
+    '2,1,2': 'The tester’s floatcart sits here.'
+  };
+  function sign(k) { return (D.signs[k] || []).join('\n'); }
+  var LABELS = [
+    { p: [2.5, 7.25, 8.5], t: 'Launch: top rail' }, { p: [2.5, 6.05, 6.15], t: 'Medium bud' },
+    { p: [3.15, 4.2, 6.5], t: 'Honey' }, { p: [3.5, 3.15, 7.5], t: 'Water grate' },
+    { p: [0.9, 2.9, 5.5], t: 'Lower lever' }, { p: [0.9, 6.9, 9.5], t: 'Top lever' }, { p: [2.2, 3.55, 1.2], t: 'Tester' },
+    { p: [0.9, 1.2, 3.5], t: sign('1,1,3'), cls: 'sign below' }, { p: [0.9, 1.2, 10.5], t: sign('1,1,10'), cls: 'sign below' },
+    { p: [2.5, 0, -1.25], t: 'N', cls: 'compass' }, { p: [2.5, 0, 12.25], t: 'S', cls: 'compass' }
+  ];
+  function frac(v) { return v - Math.floor(v); }
+
+  var stage = document.getElementById('stage'), S = null, anim = null;
+  try {
+    S = makeScene3D(stage, { canvas: document.getElementById('gl'), labels: document.getElementById('labels'),
+                             tip: document.getElementById('tip'), view: { az: -0.98, el: 0.43 }, pad: { top: 64, bottom: 84 } });
+  } catch (e) { S = null; if (window.console) console.error(e); }
+  if (S) {
+    S.blocks(D.blocks, { notes: NOTES, signs: D.signs });
+    S.cart('muted').place(D.carts[1]).fit().pick(function () {
+      return '<b>Minecart in the tester</b><span class="k">y = ' + D.carts[1][1] + '</span><div class="note">y fraction ' +
+        String(frac(D.carts[1][1])) + ': inside the window, so it’s a floatcart.</div>';
+    });
+    S.cart('ghost', { alpha: 0.22, line: 0.55 }).place(D.carts[0]).fit().pick(function () {
+      return '<b>FarCoolHat’s stored cart</b><span class="k">y = ' + D.carts[0][1] + '</span><div class="note">y fraction ' +
+        String(frac(D.carts[0][1])) + ', the sign’s “close, but not good enough”. The as-built run ends exactly here.</div>';
+    });
+    S.stand(D.stand, function () {
+      return '<b>Armor stand</b><span class="k">(' + D.stand.map(function (v) { return +v.toFixed(3); }).join(', ') +
+        ')</span><div class="note">Shoved by the piston; its block effects make the detector rail check for carts.</div>';
+    });
+    S.labels(LABELS);
+    S.fitPoint([2.5, 7.6, 8.5]);
+    S.grid();
+    anim = S.cart('run', { xray: true });
+    S.frame(true);
+    S.onUse = function () { stage.classList.add('used'); };
+    document.getElementById('resetView').addEventListener('click', S.reset);
+  } else document.getElementById('noGL').hidden = false;
+
+  var run = 'built', lever = document.getElementById('lever');
+  var P = makePlayer({
+    D: D, scene: S, cart: anim, rulesPage: RULES, run: function () { return D.runs[run]; },
+    onTick: function (k, r) {
+      var on = r.lever[k] === 1;
+      lever.textContent = on ? 'Lower lever on' : 'Lower lever OFF this tick';
+      lever.className = on ? 'pill' : 'pill off';
+      if (S) ['2,2,6', '2,1,7', '1,2,5'].forEach(function (key) { S.power(key, on); });
+    }
+  });
+  function pts(r) { return r.y.map(function (y, i) { return [2.5, y + 0.35, r.z[i]]; }); }
+  var tabs = [].slice.call(document.querySelectorAll('[data-run]'));
+  function setRun(name) {
+    run = name;
+    tabs.forEach(function (b) { b.setAttribute('aria-selected', String(b.getAttribute('data-run') === name)); });
+    document.getElementById('runDesc').innerHTML = RUN_TEXT[name];
+    if (S) {
+      var key = name === 'built' ? 'run' : 'sol', other = name === 'built' ? 'solution' : 'built';
+      S.path('this', null);
+      S.path('other', pts(D.runs[other]), { key: key === 'run' ? 'sol' : 'run', alpha: 0.45 });
+      S.path('this', pts(D.runs[name]), { key: key, xray: true });
+      S.dots(pts(D.runs[name]), key);
+      anim.recolor(key);
+    }
+    P.load(D.runs[name].off, true);
+  }
+  tabs.forEach(function (b) { b.addEventListener('click', function () { setRun(b.getAttribute('data-run')); }); });
+  setRun('built');
+})();
+</script>
+</body>
+</html>
