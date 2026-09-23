@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Minecart alignment finder · Minecraft Java 26.2</title>
+<meta name="description" content="Type the position you want a minecart to stop at. This page simulates millions of straight rail tracks in your browser and lists the ones that park a cart closest to it, floatcarts included.">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
+<script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
+<link rel="stylesheet" href="site.css">
+</head>
+<!--
+  Minecart alignment finder. Plain JavaScript, no framework or libraries, and nothing is
+  fetched from the network: the page needs site.css, site.js, scene3d.js and
+  floatcart-finder.js beside it. Aims for the parked cart's y, or its x / z after the parking
+  rail is broken (the cart then falls straight down, see dropY), at one value or a range.
+
+  For whoever maintains it: the physics engine (makeEngine, in floatcart-finder.js) is a
+  line-by-line port of the Python simulator (mcredstone/physics.py) for straight rail tracks,
+  checked against it to the last digit (7,980 full runs, every search outcome at depths 3 to 5,
+  and the full searches that found the 13 floatcart makers). The search runs in Web Workers
+  made from makeEngine's own source. Built by build_finder.py from this file and the finder_*.js parts.
+-->
+<body>
+<div class="topbar">
+  <div class="wrap bar">
+    <a class="wordmark" href="floatcart-3d.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <nav aria-label="Pages"><a href="floatcart-3d.html">Challenge</a><a href="floatcart-makers-3d.html">Makers</a><a href="floatcart-finder.html" aria-current="page">Finder</a><a href="floatcart-simulator-rules.html">Rules</a></nav>
+    <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
+  </div>
+</div>
+<div class="wrap">
+<header class="site">
+  <h1>Alignment finder</h1>
+  <p class="sub">Say where a minecart should end up. Every straight track up to the size you pick is simulated, and the closest are listed.</p>
+</header>
+  <div class="finder">
+    <section class="rail" aria-label="Search settings">
+      <fieldset class="field">
+        <legend>Aim for</legend>
+        <div class="seg">
+          <label><input type="radio" name="axis" value="y" checked><span>y value</span></label>
+          <label><input type="radio" name="axis" value="x"><span>x value</span></label>
+          <label><input type="radio" name="axis" value="z"><span>z value</span></label>
+        </div>
+        <p class="hint" id="axisHint"></p>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Target</legend>
+        <div class="seg">
+          <label><input type="radio" name="mode" value="value" checked><span>One value</span></label>
+          <label><input type="radio" name="mode" value="range"><span>A range</span></label>
+        </div>
+        <div class="inrow tgt" id="valueBox">
+          <label class="visually-hidden" for="target">Target fraction</label>
+          <input type="text" id="target" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.3000050119" aria-describedby="targetHint">
+          <span class="word">&#177;</span>
+          <label class="visually-hidden" for="tol">Counts as a match within plus or minus</label>
+          <input type="text" id="tol" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.000005" aria-describedby="targetHint">
+        </div>
+        <div class="inrow tgt" id="rangeBox" hidden>
+          <label class="word" for="lo">from</label>
+          <input type="text" id="lo" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.3000000120" aria-describedby="targetHint">
+          <label class="word" for="hi">to</label>
+          <input type="text" id="hi" class="mono" inputmode="decimal" autocomplete="off" spellcheck="false" value="0.3000100119" aria-describedby="targetHint">
+        </div>
+        <div class="presets"><button type="button" class="btn sm" id="presetFloat">Floatcart window</button></div>
+        <p class="hint" id="targetHint"></p>
+      </fieldset>
+      <fieldset class="field" id="cartBox">
+        <legend>Cart</legend>
+        <div class="seg">
+          <label><input type="radio" name="cart" value="empty" checked><span>Empty</span></label>
+          <label><input type="radio" name="cart" value="boat"><span>With a boat</span></label>
+        </div>
+        <div class="tgt" id="stopBox" hidden>
+          <label class="visually-hidden" for="stopper">Stopper</label>
+          <select id="stopper" style="width:100%">
+            <option value="bud">Stopper: amethyst bud (medium, large, cluster)</option>
+            <option value="small_bud">Stopper: small amethyst bud</option>
+            <option value="block">Stopper: plain block</option>
+          </select>
+        </div>
+        <p class="hint" id="cartHint"></p>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Rails</legend>
+        <div class="seg">
+          <label title="Powered rails and levers wherever the track needs them"><input type="radio" name="rails" value="any" checked><span>Any rails</span></label>
+          <label title="Plain and unpowered rails only"><input type="radio" name="rails" value="plain"><span>No redstone</span></label>
+        </div>
+      </fieldset>
+      <fieldset class="field">
+        <legend>Search size</legend>
+        <div class="seg" id="sizes">
+          <label><input type="radio" name="size" value="0"><span>Quick</span></label>
+          <label><input type="radio" name="size" value="1" checked><span>Normal</span></label>
+          <label><input type="radio" name="size" value="2"><span>Deep</span></label>
+          <label><input type="radio" name="size" value="3"><span>Deeper</span></label>
+          <label><input type="radio" name="size" value="4"><span>Max</span></label>
+        </div>
+        <p class="hint" id="sizeHint"></p>
+      </fieldset>
+      <details class="more pos" id="posBox">
+        <summary>Build position <span id="posSum">0 64 0, track running south</span></summary>
+        <div class="xyz">
+          <label>X<input type="text" id="px" class="mono" inputmode="numeric" value="0" autocomplete="off"></label>
+          <label>Y<input type="text" id="py" class="mono" inputmode="numeric" value="64" autocomplete="off"></label>
+          <label>Z<input type="text" id="pz" class="mono" inputmode="numeric" value="0" autocomplete="off"></label>
+          <label class="wide">Track runs<select id="facing"><option value="south">south (+Z)</option><option value="north">north (&#8722;Z)</option><option value="east">east (+X)</option><option value="west">west (&#8722;X)</option></select></label>
+        </div>
+        <p class="hint" id="posHint">The block of the rail you place the cart on. The last digits of the cart's position depend on where the track is, so results are exact for this spot.</p>
+      </details>
+      <div class="keep">
+        <label>List<select id="keep"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></label>
+        <label>Order<select id="sort"><option value="close">Closest first</option><option value="short">Shortest matches first</option></select></label>
+      </div>
+      <div class="go-wrap">
+        <div class="go">
+          <button type="button" class="btn primary" id="go">Find tracks <kbd aria-hidden="true">&#8629;</kbd></button>
+          <button type="button" class="btn" id="stop" disabled>Stop</button>
+        </div>
+        <span class="status" id="status" aria-live="polite"></span>
+      </div>
+    </section>
+
+    <section class="console" aria-label="Results">
+      <div class="checkbar" id="check">
+        <label class="lab" for="code">Check a layout</label>
+        <input type="text" id="code" class="mono" autocomplete="off" spellcheck="false" placeholder="Dr Dr Fr Fr Fp Up Fr Fr Ur E">
+        <button type="button" class="btn sm" id="checkBtn">Simulate</button>
+      </div>
+      <div id="checkOut" aria-live="polite"></div>
+
+      <div class="intro-empty" id="intro">
+        <h2>Find a track that parks a cart where you want it</h2>
+        <p>Every straight track the settings allow is simulated tick by tick, right here in your browser. The closest are listed here, each with a 3D view, its build and a schematic to download.</p>
+        <ol>
+          <li><span>Pick what to aim for: the cart's height on the rail, or its x or z once you break the rail under it.</span></li>
+          <li><span>Type a target, or press <b>Floatcart window</b> for the famous one.</span></li>
+          <li><span>Press <b>Find tracks</b>. A normal search takes a few seconds.</span></li>
+        </ol>
+      </div>
+
+      <section class="results" id="results" hidden aria-labelledby="h-res">
+        <div class="res-head"><h2 id="h-res">Closest tracks</h2></div>
+        <p id="summary" aria-live="polite"></p>
+        <div id="prog" hidden>
+          <div class="progress" id="barBox" role="progressbar" aria-label="Search progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar"></i></div>
+          <p id="progText"></p>
+        </div>
+        <table class="res">
+          <thead><tr><th>#</th><th>Layout</th><th id="thVal">y fraction</th><th class="num" id="thOff">Off by</th><th class="num">Rails</th><th class="num">Levers</th><th><span class="visually-hidden">Details</span></th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <p class="legend">One token per rail: <span class="tok st">Dr</span> start on a slope down (<span class="tok st p">Dp</span> powered, <span class="tok st p">S</span> flat with a conductor behind it), then <b>F</b>&#8202;/&#8202;<b>U</b>&#8202;/&#8202;<b>D</b> flat, up, down, each <b>r</b> plain, <span class="tok p">p</span> powered on or <span class="tok h">h</span> off, ending on <span class="tok e">E</span>, the parking slope. Click a row for the build, a 3D view and the schematic.</p>
+      </section>
+
+      <section class="notes" aria-labelledby="h-notes">
+        <h2 id="h-notes">How it works</h2>
+        <p>A track is one straight lane of rails. The cart rolls from the first rail and stops on the last one, a powered rail that is off, sloping up. How far up it gets is the alignment: y = 1/16 plus that.</p>
+        <dl>
+          <div><dt>The game's physics</dt><dd>A port of the simulator that lands on exactly the number FarCoolHat's stored cart has, confirmed in game on 13 tracks. 7,980 runs against the original, every digit the same.</dd></div>
+          <div><dt>x and z</dt><dd>Break the parking rail: a parked cart has no speed, so it drops straight down and keeps both. Checked on 2,100 drops.</dd></div>
+          <div><dt>Boat carts</dt><dd>The download adds a loading run: the cart picks the boat up, stops against the stopper, and you break the glass under it. A rider moves 0.75 of its speed and keeps 99.7% of it each tick, so these are different tracks.</dd></div>
+          <div><dt>Where you build</dt><dd>It changes the last digits. <i>Check at 60 positions</i> reruns a track across the world, in all four directions.</dd></div>
+          <div><dt>Nothing may touch the cart</dt><dd>Over 0.1 blocks/tick it picks up whatever it can push within 0.2 blocks, and a passenger changes everything. Keep the track clear, and leave the experimental minecart changes off.</dd></div>
+          <div><dt>Downloads</dt><dd>The schematic alone, or with command blocks that place the cart, wait, and report the result in chat with a wool marker.</dd></div>
+        </dl>
+      </section>
+    </section>
+  </div>
+</div>
+<footer class="site-foot">
+  <div class="wrap">
+    <p><strong>07km</strong> &mdash; solution, search, schematics. Claude for visualization.</p>
+    <p>Build: &ldquo;vertical floatcart challenge&rdquo; by FarCoolHat. Java Edition 26.2, classic minecart engine. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</p>
+  </div>
+</footer>
+<script src="site.js"></script>
+<script src="scene3d.js"></script>
+<script src="floatcart-finder.js"></script>
+</body>
+</html>
