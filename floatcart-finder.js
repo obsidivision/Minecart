@@ -4,10 +4,13 @@
    exactly as its 5 source files are written, comments and all. Nothing is minified, and
    nothing is fetched at run time. Built by mcredstone/finder/build_finder.py from:
      finder_engine.js       Physics and search: a line-by-line port of mcredstone/physics.py for straight rail
+                            tracks, plus the depth-first search over layouts.
      finder_litematic.js    Writes .litematic files, the same bytes as mcredstone/schematic_writer.py.
      finder_tester.js       The "Download with tester" build: command blocks that test a track in game.
      finder_3d.js           The 3D view of one track: scene3d.js (shared with the two 3D pages) in a box that
+                            moves into whichever result is open.
      finder_app.js          The page itself: reading the settings, running the search in workers, the results
+                            table, the details, the downloads and the checks.
 
    The physics are a port of the Python simulator (mcredstone/physics.py) for straight rail
    tracks, checked against it to the last digit; the search runs in Web Workers made from
@@ -1152,6 +1155,8 @@ function makeViewer3D() {
       S.frame(true);
     },
     snapshot: S.snapshot,
+    // draw again, after the page has moved the view into another box
+    redraw: S.request,
     // for the page checks: the camera the fit chose and what it was fitted to
     debug: S.debug
   };
@@ -1177,8 +1182,8 @@ function makeViewer3D() {
     { name: 'Quick', dry: 6, plain: 12 },
     { name: 'Normal', dry: 7, plain: 14 },
     { name: 'Deep', dry: 8, plain: 16 },
-    { name: 'Very deep', dry: 9, plain: 18 },
-    { name: 'Extreme', dry: 10, plain: 20 }
+    { name: 'Deeper', dry: 9, plain: 18 },
+    { name: 'Max', dry: 10, plain: 20 }
   ];
   var TOTALS = {"dry":{"6":102025,"7":533263,"8":2791725,"9":14651124,"10":76907893},"plain":{"12":37651,"14":177261,"16":841403,"18":4017049,"20":19267385}};
   var RATE = { dry: 90000, plain: 36000 };          // rough tracks per second per core, for the estimate
@@ -1757,6 +1762,7 @@ function makeViewer3D() {
       if (k === v3Key) current = b;
       else if (!seen[k] && !fresh) fresh = b;                       // a result just opened takes the canvas
     });
+    if (boxes.indexOf(v.el.parentNode) >= 0) current = v.el.parentNode;   // shown twice: the box that has the canvas
     v3Box = current;
     boxes.forEach(function (b) {
       var k = b.getAttribute('data-gl');
@@ -1764,6 +1770,11 @@ function makeViewer3D() {
     });
     if (fresh) attachViewer(fresh);
     else if (!current) attachViewer(boxes[boxes.length - 1]);
+    else if (v.el.parentNode !== current) {                         // redrawn: the live view goes back in, camera kept
+      current.innerHTML = '';
+      current.appendChild(v.el);
+      v.redraw();
+    }
   }
   function glClick(e) {
     var box = e.target.closest ? e.target.closest('.glbox') : null;
