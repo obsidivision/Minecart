@@ -163,7 +163,7 @@ function makeScene3D(host, opt) {
     goldOff: '#8a7434', iron: '#a7abb0', lit: '#ec3b2a', unlit: '#4f2320', detector: '#7d4f4a', sign: '#dd9b98',
     lever: '#6c6c6c', stick: '#7a5431', axle: '#3b3f44', stand: '#a27b4c', standBase: '#9b9b9b', boat: '#a9743e', boatTrim: '#7d5124'
   };
-  var objs = [], picks = [], byPos = {}, notes = {}, signs = {}, fitPts = [];
+  var objs = [], picks = [], byPos = {}, notes = {}, signs = {}, fitPts = [], rails = {};
   // col: [r,g,b,a], or a theme key ('run', 'sol', ...) with an alpha; edge: a colour, 'dark', 'glass' or null
   function add(m, col, o) {
     o = o || {};
@@ -256,6 +256,7 @@ function makeScene3D(host, opt) {
         break;
       case 'rail': case 'powered_rail': case 'detector_rail': case 'activator_rail':
         rail(rec, x, y, z, pr.shape || 'north_south', name, pr.powered === 'true');
+        rails[x + ',' + y + ',' + z] = pr.shape || 'north_south';
         if (pr.waterlogged === 'true') P([0, 0, 0], [1, 0.889, 1], hex(C.water, 0.2), { edge: hex(C.water, 0.35) });
         break;
       default: P([0, 0, 0], [1, 1, 1], hex('#ff00ff'));
@@ -301,7 +302,47 @@ function makeScene3D(host, opt) {
     [[-0.34, 0.12, 0.43], [0.68, 0.5, 0.06], 1], [[-0.44, 0.03, -0.33], [0.88, 0.09, 0.1], 0],
     [[-0.44, 0.03, 0.23], [0.88, 0.09, 0.1], 0]];
   var carts = [], boxes = [];
+  // Where a cart rides, as the game works it out (R1, R2): the rail under its feet or at them, and
+  // the point on that rail's track line for its x and z. Straight rails only.
+  var RAIL_EXITS = { north_south: [[0, 0, -1], [0, 0, 1]], east_west: [[-1, 0, 0], [1, 0, 0]],
+    ascending_east: [[-1, -1, 0], [1, 0, 0]], ascending_west: [[-1, 0, 0], [1, -1, 0]],
+    ascending_north: [[0, 0, -1], [0, -1, 1]], ascending_south: [[0, -1, -1], [0, 0, 1]] };
+  function railUnder(x, y, z) {
+    var xt = Math.floor(x), yt = Math.floor(y), zt = Math.floor(z), s = rails[xt + ',' + (yt - 1) + ',' + zt];
+    if (s === undefined) s = rails[xt + ',' + yt + ',' + zt]; else yt--;
+    return RAIL_EXITS[s] ? { ex: RAIL_EXITS[s], x: xt, y: yt, z: zt, slope: s.indexOf('ascending') === 0 } : null;
+  }
+  function trackPos(x, y, z) {
+    var r = railUnder(x, y, z);
+    if (!r) return null;
+    var e0 = r.ex[0], e1 = r.ex[1], x0 = r.x + 0.5 + e0[0] * 0.5, y0 = r.y + 0.0625 + e0[1] * 0.5, z0 = r.z + 0.5 + e0[2] * 0.5;
+    var xD = e1[0] - e0[0], yD = e1[1] - e0[1], zD = e1[2] - e0[2];
+    var p = xD === 0 ? z - r.z : x - r.x, yy = y0 + yD * p;
+    return [x0 + xD * 0.5 * p, yD < 0 ? yy + 1 : yD > 0 ? yy + 0.5 : yy, z0 + zD * 0.5 * p];
+  }
+  // the track point `off` along the rail from (x, z), stepping onto the next rail where it must
+  function trackPosOffs(x, y, z, off) {
+    var r = railUnder(x, y, z);
+    if (!r) return null;
+    var e0 = r.ex[0], e1 = r.ex[1], yy = r.y + (r.slope ? 1 : 0);
+    x += (e1[0] - e0[0]) / 2 * off; z += (e1[2] - e0[2]) / 2 * off;
+    if (e0[1] !== 0 && Math.floor(x) - r.x === e0[0] && Math.floor(z) - r.z === e0[2]) yy += e0[1];
+    else if (e1[1] !== 0 && Math.floor(x) - r.x === e1[0] && Math.floor(z) - r.z === e1[2]) yy += e1[1];
+    return trackPos(x, yy, z);
+  }
+  // How a cart at p lies, as the game draws it: along its rail, tipped by the track's rise from the
+  // point 0.3 behind it to the point 0.3 ahead, so it tips over gradually where a slope meets a flat
+  // rail. Level off the rails (flying, or resting on the honey above one).
+  function cartTurn(p) {
+    var on = trackPos(p[0], p[1], p[2]);
+    if (!on || Math.abs(on[1] - p[1]) > 0.3) return ident();
+    var a = trackPosOffs(p[0], p[1], p[2], 0.3) || on, b = trackPosOffs(p[0], p[1], p[2], -0.3) || on;
+    var dx = a[0] - b[0], dy = a[1] - b[1], dz = a[2] - b[2], h = Math.hypot(dx, dz);
+    if (h < 1e-9) { var r = railUnder(p[0], p[1], p[2]); dx = r.ex[1][0] - r.ex[0][0]; dz = r.ex[1][2] - r.ex[0][2]; dy = 0; h = Math.hypot(dx, dz); }
+    return chain(RY(Math.atan2(dx, dz)), RX(-Math.atan2(dy, h)));
+  }
   // a cart: body in a theme colour (key), its hitbox outlined. o.xray draws it through blocks.
+  // The body follows the rail (cartTurn); the outline is the hitbox, which never turns.
   function makeCart(key, o) {
     o = o || {};
     var a = o.alpha == null ? 1 : o.alpha, c = { key: key, a: a, parts: [], hit: null, xray: !!o.xray, visible: false, line: o.line == null ? 0.95 : o.line };
@@ -312,7 +353,8 @@ function makeScene3D(host, opt) {
     c.place = function (p) {
       if (!p) { c.visible = false; c.parts.forEach(function (ob) { ob.hidden = true; }); request(); return c; }
       c.visible = true; c.pos = p;
-      c.parts.forEach(function (ob) { ob.hidden = false; setM(ob, chain(T(p[0], p[1], p[2]), boxM(ob.local[0], ob.local[1]))); });
+      var at = chain(T(p[0], p[1], p[2]), cartTurn(p));
+      c.parts.forEach(function (ob) { ob.hidden = false; setM(ob, chain(at, boxM(ob.local[0], ob.local[1]))); });
       c.hit = boxM([p[0] - HW, p[1], p[2] - HW], [2 * HW, HH, 2 * HW]);
       c.aabb = [p[0] - HW, p[1], p[2] - HW, p[0] + HW, p[1] + HH, p[2] + HW];
       request(); return c;
@@ -334,14 +376,21 @@ function makeScene3D(host, opt) {
     fitPts.push(bb.slice(0, 3), bb.slice(3));
   }
   var BOAT_W = 1.375, BOAT_H = 0.5625;                       // every boat and raft (EntityType)
+  // a boat at p (the middle of its bottom); place() moves it, as a cart carries it
   function addBoat(p) {
-    var col = hex(C.boat), trim = hex(C.boatTrim), x0 = p[0] - BOAT_W / 2, z0 = p[2] - BOAT_W / 2, h = BOAT_H - 0.1;
-    add(boxM([x0, p[1], z0], [BOAT_W, 0.1, BOAT_W]), col);
-    add(boxM([x0, p[1] + 0.1, z0], [BOAT_W, h, 0.12]), trim);
-    add(boxM([x0, p[1] + 0.1, z0 + BOAT_W - 0.12], [BOAT_W, h, 0.12]), trim);
-    add(boxM([x0, p[1] + 0.1, z0], [0.12, h, BOAT_W]), trim);
-    add(boxM([x0 + BOAT_W - 0.12, p[1] + 0.1, z0], [0.12, h, BOAT_W]), trim);
-    fitPts.push([x0, p[1], z0], [x0 + BOAT_W, p[1] + BOAT_H, z0 + BOAT_W]);
+    var col = hex(C.boat), trim = hex(C.boatTrim), w = BOAT_W, h = BOAT_H - 0.1, b = { parts: [] };
+    [[[0, 0, 0], [w, 0.1, w], col], [[0, 0.1, 0], [w, h, 0.12], trim], [[0, 0.1, w - 0.12], [w, h, 0.12], trim],
+     [[0, 0.1, 0], [0.12, h, w], trim], [[w - 0.12, 0.1, 0], [0.12, h, w], trim]].forEach(function (q) {
+      var ob = add(ident(), q[2]); ob.local = q; b.parts.push(ob);
+    });
+    b.place = function (p) {
+      var x0 = p[0] - w / 2, z0 = p[2] - w / 2;
+      b.parts.forEach(function (ob) { setM(ob, boxM([x0 + ob.local[0][0], p[1] + ob.local[0][1], z0 + ob.local[0][2]], ob.local[1])); });
+      request(); return b;
+    };
+    b.place(p);
+    fitPts.push([p[0] - w / 2, p[1], p[2] - w / 2], [p[0] + w / 2, p[1] + BOAT_H, p[2] + w / 2]);
+    return b;
   }
 
   /* ---------- paths, tick dots, labels ---------- */
@@ -628,7 +677,7 @@ function makeScene3D(host, opt) {
     // drop everything: blocks, entities, paths, labels
     clear: function () {
       objs.length = 0; picks.length = 0; fitPts.length = 0; carts.length = 0; boxes.length = 0; dots = [];
-      byPos = {}; notes = {}; signs = {}; hoverPick = null; setTip(null);
+      byPos = {}; notes = {}; signs = {}; rails = {}; hoverPick = null; setTip(null);
       Object.keys(paths).forEach(function (n) { setPath(n, null); });
       setLabels([]);
       if (LINES.grid) { gl.deleteBuffer(LINES.grid.b); LINES.grid = null; }
