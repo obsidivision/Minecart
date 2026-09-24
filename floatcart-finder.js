@@ -12,7 +12,7 @@
      App           The page itself: reading the settings, running the search in workers, the
                    results table, the details, the downloads and the checks.
 
-   The physics began as a port of the Python simulator (physics.py), checked against it to the
+   The physics began as a port of the Python simulator, checked against it to the
    last digit; the Python is retired and this is now the reference. The search runs in Web
    Workers made from makeEngine's own source, so it works from a file:// URL as well as from a
    web server. Needs site.js and scene3d.js (loaded first by the page) for the theme and the 3D
@@ -1226,7 +1226,7 @@ function makeTester(E, LW) {
   }
   function frac10(v) { return v.toFixed(10); }
   function rangeText(lo, hi) {
-    return lo <= hi ? 'from ' + frac10(lo) + ' to ' + frac10(hi) : 'from ' + frac10(lo) + ' up to 1 or from 0 to ' + frac10(hi);
+    return lo <= hi ? frac10(lo) + ' to ' + frac10(hi) : frac10(lo) + ' to 1 or 0 to ' + frac10(hi);
   }
   function cmdState(kind, facing) {
     var name = { impulse: 'minecraft:command_block', chain: 'minecraft:chain_command_block', repeat: 'minecraft:repeating_command_block' }[kind];
@@ -1280,7 +1280,7 @@ function makeTester(E, LW) {
     var lift = start === 'S' ? 0.0625 : 0.5625, dy = (ys[0] + lift) - (yb + 0.5);
     function summonCart(dyy) {
       return 'execute if score ' + t + ' ' + SUMMON_T + '.. unless entity @e[type=minecart,tag=' + tag + '] run summon minecart ' +
-        '~ ~' + plain(dyy) + ' ~ {Tags:["' + tag + '"],CustomName:"Track test",CustomNameVisible:1b}';
+        '~ ~' + plain(dyy) + ' ~ {Tags:["' + tag + '"],CustomName:"Test cart",CustomNameVisible:1b}';
     }
     if (!La) put(at(0, yb), cmdState('repeat', 'up'), cmdData(summonCart(dy), true));
     var park = at(last, ys[last]), info = { code: code, axis: axis, lo: lo, hi: hi, check: check, tb: tb, summon: La ? null : at(0, yb), dy: dy, park: park,
@@ -1302,14 +1302,14 @@ function makeTester(E, LW) {
     for (s = 0; s < reset.length; s++) put(at(-5, y0, s), cmdState(s === 0 ? 'impulse' : 'chain', sideFacing), cmdData(reset[s], s > 0));
     put(at(-6, y0, 0), { name: 'minecraft:stone_button', props: { face: 'wall', facing: back, powered: 'false' } });
     put(at(-6, y0, 1), { name: SIGN, props: { facing: back, waterlogged: 'false' } },
-      signData(['Track test', 'Press button', 'to test again', 'Results in chat']));
+      signData(['', 'Retest', '', '']));
 
     var rt = rangeText(lo, hi);
-    var what = { y: 'y fraction', x: 'x fraction after the drop', z: 'z fraction after the drop' }[axis];
+    var what = { y: 'y', x: 'x after the drop', z: 'z after the drop' }[axis];
     var secs = Math.floor((check + 14) / 20);
     var lines = [
       'execute unless score ' + t + ' ' + limit + '.. run scoreboard players add #t ' + obj + ' 1',
-      'execute if score ' + t + ' 1 run tellraw @a {"text":"Track test: the cart goes in 3 seconds, results in about ' + secs + ' seconds.","color":"gray"}',
+      'execute if score ' + t + ' 1 run tellraw @a {"text":"Testing... results in ' + secs + 's","color":"gray"}',
       'execute if score ' + t + ' 8 as @e[type=minecart,tag=' + tag + '] at @s run fill ~ ~2 ~ ~ ~2 ~ air replace #minecraft:wool',
       'execute if score ' + t + ' 10 run tp @e[type=minecart,tag=' + tag + '] ~ -400 ~'
     ];
@@ -1334,17 +1334,15 @@ function makeTester(E, LW) {
       'unless entity @s[dx=0,dy=0,dz=0] run tag @s add ' + ftag);
     info.a = a; info.c = c;
     lines.push('execute if score ' + t + ' ' + (check + 1) + ' as @e[type=minecart,tag=' + tag + '] at @s run fill ~ ~2 ~ ~ ~2 ~ air replace #minecraft:wool');
-    lines.push('execute if score ' + t + ' ' + (check + 2) + ' if entity @e[type=minecart,tag=' + ptag + '] run tellraw @a ["",{"text":"Track test: ","bold":true},' +
-      '{"text":"PASS","bold":true,"color":"green"},{"text":" - the cart\'s ' + what + ' is ' + rt + '."}]');
-    lines.push('execute if score ' + t + ' ' + (check + 2) + ' unless entity @e[type=minecart,tag=' + ptag + '] run tellraw @a ["",{"text":"Track test: ","bold":true},' +
-      '{"text":"FAIL","bold":true,"color":"red"},{"text":" - the cart\'s ' + what + ' is not ' + rt + '."}]');
+    lines.push('execute if score ' + t + ' ' + (check + 2) + ' if entity @e[type=minecart,tag=' + ptag + '] run tellraw @a ["",{"text":"PASS","bold":true,"color":"green"},{"text":" ' + what + ' within ' + rt + '"}]');
+    lines.push('execute if score ' + t + ' ' + (check + 2) + ' unless entity @e[type=minecart,tag=' + ptag + '] run tellraw @a ["",{"text":"FAIL","bold":true,"color":"red"},{"text":" ' + what + ' outside ' + rt + '"}]');
     lines.push('execute if score ' + t + ' ' + (check + 2) + ' as @e[type=minecart,tag=' + ptag + '] at @s run setblock ~ ~2 ~ lime_wool keep');
     lines.push('execute if score ' + t + ' ' + (check + 2) + ' as @e[type=minecart,tag=' + tag + ',tag=!' + ptag + '] at @s run setblock ~ ~2 ~ red_wool keep');
     if (axis === 'y') {
-      lines.push('execute if score ' + t + ' ' + (check + 3) + ' if entity @e[type=minecart,tag=' + ftag + '] run tellraw @a {"text":"It is a floatcart.","color":"green"}');
-      lines.push('execute if score ' + t + ' ' + (check + 3) + ' unless entity @e[type=minecart,tag=' + ftag + '] run tellraw @a {"text":"It is not a floatcart.","color":"gray"}');
+      lines.push('execute if score ' + t + ' ' + (check + 3) + ' if entity @e[type=minecart,tag=' + ftag + '] run tellraw @a {"text":"Floatcart!","color":"green"}');
+      lines.push('execute if score ' + t + ' ' + (check + 3) + ' unless entity @e[type=minecart,tag=' + ftag + '] run tellraw @a {"text":"Not a floatcart","color":"gray"}');
     }
-    lines.push('execute if score ' + t + ' ' + (check + 4) + ' run tellraw @a ["",{"text":"Exact cart position [x, y, z]: ","color":"gray"},' +
+    lines.push('execute if score ' + t + ' ' + (check + 4) + ' run tellraw @a ["",{"text":"Pos: ","color":"gray"},' +
       '{"entity":"@e[type=minecart,tag=' + tag + ',limit=1]","nbt":"Pos"}]');
     if (La && La.boat) lines.splice(3, 0, 'execute if score ' + t + ' 9 run tp @e[type=oak_boat,tag=' + btag + '] ~ -400 ~');
     for (var k = 0; k < lines.length; k++) put(at(k, yb, 2), cmdState('repeat', 'up'), cmdData(lines[k], true));
@@ -1382,14 +1380,10 @@ function makeTester(E, LW) {
              floatcart: boxHit(y, y + HEIGHT, top) && !boxHit(y, y + HEIGHT, top + Number(F1E5)) };
   }
   function description(code, axis, lo, hi, check, info) {
-    var what = { y: 'its y fraction', x: 'its x fraction after the parking rail is removed', z: 'its z fraction after the parking rail is removed' }[axis];
-    var put = !info || info.how === 'hand' ? 'put a minecart on the start rail'
-      : info.boat ? 'put a boat on the launcher\'s boat rail and a minecart on its top slope; the cart takes the boat aboard, is launched into the stopper and falls onto the start rail'
-      : 'put a minecart on the launch slope; it is launched into the stopper and falls onto the start rail';
-    return 'Track found by the minecart alignment finder (created by 07km), with an automatic test. ' +
-      'Paste it in a creative world with commands allowed: command blocks ' + put + ', ' +
-      'and about ' + Math.floor((check + 14) / 20) + ' seconds after the paste the chat says whether ' + what + ' is ' +
-      rangeText(lo, hi) + ', with the exact position. The button behind the start runs it again. Layout code: ' + code + '. Minecraft Java 26.2.';
+    var what = { y: 'y', x: 'x (after the drop)', z: 'z (after the drop)' }[axis];
+    return 'Minecart track by 07km, with a built-in test' + (info && info.boat ? ' (boat cart)' : '') + '. Paste with commands on; ' +
+      'results in chat after ~' + Math.floor((check + 14) / 20) + 's. Target ' + what + ': ' + rangeText(lo, hi) +
+      '. Button retests. Layout: ' + code + '. Java 26.2';
   }
   // The whole file: uncompressed NBT bytes, plus what the test should report when the start
   // rail is where it was built (the run, the drop for x / z, and the verdict).
@@ -2365,7 +2359,7 @@ function makeViewer3D() {
       'enable-command-block=true). ' + (f.info.boat ? 'Command blocks summon the boat on its rail, then the cart on the launcher. '
         : f.info.how === 'fly' ? 'Command blocks summon the cart on the launcher. ' : '') + 'About ' + f.info.secs + ' seconds later the chat shows the result' +
       (st.axis === 'y' ? '' : ', after the test removes the parking rail') + '. Here it should say ' + (f.expect.passed ? 'PASS' : 'FAIL') +
-      (st.axis === 'y' ? ' and ' + (f.expect.floatcart ? '"It is a floatcart"' : '"It is not a floatcart"') : '') +
+      (st.axis === 'y' ? ' and ' + (f.expect.floatcart ? '"Floatcart!"' : '"Not a floatcart"') : '') +
       ' (' + st.axis + ' fraction ' + fmtFrac(v) + '). For exactly these numbers, place it with the start rail at ' + xyz(f.startRail) +
       ': that rail is ' + xyz(rel) + ' from the schematic\'s corner (' + f.size.join(' × ') + ' blocks).');
   }
