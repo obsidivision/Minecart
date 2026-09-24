@@ -294,7 +294,7 @@
         <div>
           <h3>Axis order</h3>
           <p class="summary">A move is resolved vertical axis first, then the horizontal axis with the bigger move.</p>
-          <details class="more"><summary>Full rule</summary><div class="full"><p>A move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). Assumed (B1).</p><span class="src">physics.py</span></div></details>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>A move is resolved one axis at a time: vertical first, then the horizontal axis with the bigger move (x first on ties). This order is assumed.</p><span class="src">physics.py</span></div></details>
         </div>
       </article>
       <article class="rule" id="C2">
@@ -326,7 +326,7 @@
         <div>
           <h3>No bounce</h3>
           <p class="summary">A blocked direction loses all its speed. That these blocks add no bounce is assumed.</p>
-          <details class="more"><summary>Full rule</summary><div class="full"><p>A blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here add no bounce, B3). A horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more.</p><span class="src">physics.py</span></div></details>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>A blocked axis loses all its speed (minecarts don&#x27;t bounce, and the blocks here are assumed to add no bounce). A horizontal axis counts as blocked when the allowed move differs from the wanted one by 1e-5 or more.</p><span class="src">physics.py</span></div></details>
         </div>
       </article>
       <article class="rule" id="C6">
@@ -350,7 +350,7 @@
         <div>
           <h3>Full cubes</h3>
           <p class="summary">Glass, concrete, observers, note blocks, retracted pistons, and the copper grate (assumed).</p>
-          <details class="more"><summary>Full rule</summary><div class="full"><p>Glass, concrete, observers, note blocks, retracted pistons and the copper grate (assumed, B4) collide as whole 1x1x1 blocks.</p><span class="src">physics.py</span></div></details>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>Glass, concrete, observers, note blocks, retracted pistons and the copper grate (assumed) collide as whole 1x1x1 blocks.</p><span class="src">physics.py</span></div></details>
         </div>
       </article>
       <article class="rule" id="C9">
@@ -398,7 +398,7 @@
         <div>
           <h3>Other entities</h3>
           <p class="summary">Entities are solid for the cart too: a boat waiting on the track stops it, until the cart picks it up.</p>
-          <details class="more"><summary>Full rule</summary><div class="full"><p>Their hitboxes are colliders too. getEntityCollisions takes the entities whose box intersects the swept box grown by 1e-7 and whose canCollideWith passes; for a minecart that is canVehicleCollide, which holds for anything solid or pushable but never for what it is carrying (V).</p><span class="src">physics.py</span></div></details>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>Their hitboxes are colliders too. getEntityCollisions takes the entities whose box intersects the swept box grown by 1e-7 and whose canCollideWith passes; for a minecart that is canVehicleCollide, which holds for anything solid or pushable but never for what it is carrying.</p><span class="src">physics.py</span></div></details>
         </div>
       </article>
     </section>
@@ -478,7 +478,7 @@
         <div>
           <h3>Water never moves here</h3>
           <p class="summary">Lever flips make the water recheck, but it can&#x27;t flow out of the grate, and rails only accept source water (assumed).</p>
-          <details class="more"><summary>Full rule</summary><div class="full"><p>A lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (assumed, B8), so the water stays exactly as built.</p><span class="src">physics.py</span></div></details>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>A lever flip schedules water updates in the grate and in the waterlogged rail next to the switched rails, but water can&#x27;t flow out of a full block (the grate), and rails accept only source water (assumed), so the water stays exactly as built.</p><span class="src">physics.py</span></div></details>
         </div>
       </article>
     </section>

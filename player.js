@@ -64,8 +64,8 @@ function makePlayer(cfg) {
     var k = curTick(), r = R();
     if (force || k !== shown) {
       shown = k;
-      ui.tick.value = Math.round(st.t);
-      ui.tick.style.setProperty('--p', (tmax() ? 100 * Math.round(st.t) / tmax() : 0) + '%');
+      ui.tick.value = k;
+      ui.tick.style.setProperty('--p', (tmax() ? 100 * k / tmax() : 0) + '%');
       ui.tickNum.textContent = k;
       ui.phase.textContent = D.phases[r.ph[k]];
       ui.phaseRules.innerHTML = '<span>Rules</span>' + (D.phaseRules[r.ph[k]] || []).map(function (id) {
@@ -103,7 +103,7 @@ function makePlayer(cfg) {
     st.playing = p; label();
     if (p && !raf) { last = performance.now(); raf = requestAnimationFrame(frame); }
   }
-  function step(d) { st.t = Math.max(0, Math.min(tmax(), Math.round(st.t) + d)); setPlaying(false); refresh(true); }
+  function step(d) { st.t = Math.max(0, Math.min(tmax(), curTick() + d)); setPlaying(false); refresh(true); }
 
   ui.play.addEventListener('click', function () { setPlaying(!st.playing); });
   ui.back.addEventListener('click', function () { step(-1); });
@@ -130,7 +130,7 @@ function makePlayer(cfg) {
   return {
     // a new run is on show: from tick 0, or from the same tick (keep) to compare runs
     load: function (marks, keep) {
-      st.t = keep ? Math.min(Math.round(st.t), tmax()) : 0; setPlaying(false);
+      st.t = keep ? Math.min(curTick(), tmax()) : 0; setPlaying(false);
       ui.tick.max = tmax(); ui.tickMax.textContent = tmax();
       ui.marks.innerHTML = (marks || []).map(function (t) { return '<i style="left:' + (t / tmax() * 100) + '%" title="lever off"></i>'; }).join('');
       result();
