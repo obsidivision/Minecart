@@ -729,6 +729,8 @@ function makeScene3D(host, opt) {
     // frame the scene again (after new content); keeps the user's view if they moved it, unless forced
     frame: function (force) { if (!measured) return; fitHome(); if (force || !touched) resetView(); },
     reset: resetView,
+    // turn the camera around its target by an angle (radians), for a view that spins by itself
+    turn: function (a) { cam.az += a; request(); },
     follow: function (p) { follow = p ? p.slice() : null; if (p) touched = true; request(); },
     request: request,
     resize: resize,

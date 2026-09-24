@@ -1,0 +1,116 @@
+/* home.js — the homepage's live view: random straight tracks, built and run one after another
+   with the finder's engine (makeEngine, from floatcart-finder.js), while the camera turns.
+   Each track is picked at random (start, rails, direction, and sometimes a launcher, with or
+   without a boat); a track the cart doesn't park on is thrown away before it is shown. When the
+   cart parks, the view holds a moment and the next track takes its place. */
+(function () {
+  'use strict';
+  var host = document.getElementById('stage'), now = document.getElementById('now');
+  if (!host || typeof makeEngine !== 'function' || typeof makeScene3D !== 'function') return;
+  var E = makeEngine(), S = null;
+  try { S = makeScene3D(host, { view: { az: 0.9, el: 0.42 } }); } catch (e) { S = null; }
+  if (!S) { host.classList.add('none'); return; }
+  host.insertBefore(S.canvas, host.firstChild);
+
+  var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var SPEED = 1.5, SPIN = still ? 0 : 0.14, HOLD = 1.8;           // ticks x game speed, radians a second, seconds parked
+  var FACINGS = ['south', 'north', 'east', 'west'], STARTS = ['S', 'Dr', 'Dp'];
+  var TOKENS = E.ALPHABETS.dry.concat(['Fr', 'Fr', 'Ur', 'Dr']);   // plain rails a little more often
+  function pick(a) { return a[Math.floor(Math.random() * a.length)]; }
+
+  // a random track the cart parks on: {code, facing, origin, opt, r (the run), b (the build)}
+  function randomTrack() {
+    for (var tries = 0; tries < 400; tries++) {
+      var start = pick(STARTS), n = 2 + Math.floor(Math.random() * 8), toks = [start];
+      for (var i = 0; i < n; i++) toks.push(pick(TOKENS));
+      toks.push('E');
+      var code = toks.join(' '), blocks;
+      try { blocks = E.parse(code).blocks; } catch (e) { continue; }
+      if (E.problems(blocks).length) continue;
+      var facing = pick(FACINGS), origin = start === 'S' ? [0, 64, 0] : [0, 65, 0], opt = null;
+      if (Math.random() < 0.4) {
+        var stoppers = Object.keys(E.STOPPERS);
+        opt = { how: 'fly', boat: Math.random() < 0.4, stopper: pick(stoppers), approach: pick(E.APPROACHES) };
+      }
+      var r = E.run(code, origin, facing, true, 3000, opt);
+      if (!r.ok || r.path.length < 8) continue;
+      return { code: code, facing: facing, origin: origin, opt: opt, r: r, b: E.build(code, origin, facing, opt) };
+    }
+    var c = 'Dr Dr Fr Fr Fp Up Fr Fr Ur E', o = [0, 65, 0];
+    return { code: c, facing: 'south', origin: o, opt: null, r: E.run(c, o, 'south', true, 3000), b: E.build(c, o, 'south') };
+  }
+
+  var cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, spin = 0, shown = -1;
+  function show(tr) {
+    cur = tr;
+    var off = [Infinity, Infinity, Infinity];
+    tr.b.blocks.forEach(function (q) { off[0] = Math.min(off[0], q.x); off[1] = Math.min(off[1], q.y); off[2] = Math.min(off[2], q.z); });
+    function rel(p, dy) { return [p[0] - off[0], p[1] - off[1] + (dy || 0), p[2] - off[2]]; }
+    S.clear();
+    S.blocks(tr.b.blocks, { offset: off });
+    run = tr.r.path.map(function (p) { return rel(p); });
+    split = 0;                                             // ticks before the cart is on the track (a launch)
+    while (split < tr.r.path.length && tr.r.path[split][3] < 0) split++;
+    var La = tr.b.launcher;
+    boat = La && La.boat ? { b: S.boat(rel(La.boat)), spot: rel(La.boat), pick: tr.r.pickTick || 0 } : null;
+    mover = S.cart('sol');
+    // frame a circle round the build, so every angle of the turning camera fits it
+    var lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+    tr.b.blocks.forEach(function (q) {
+      var p = rel([q.x, q.y, q.z]);
+      for (var k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k] + 1); }
+    });
+    var cx = (lo[0] + hi[0]) / 2, cz = (lo[2] + hi[2]) / 2, rad = Math.hypot(hi[0] - lo[0], hi[2] - lo[2]) / 2 + 0.5;
+    S.grid([cx - rad, lo[1], cz - rad, cx + rad, hi[1], cz + rad], 0, false);
+    for (var a = 0; a < 16; a++) {
+      var x = cx + rad * Math.cos(a * Math.PI / 8), z = cz + rad * Math.sin(a * Math.PI / 8);
+      S.fitPoint([x, lo[1], z]); S.fitPoint([x, hi[1], z]);
+    }
+    S.resize(); S.frame(true); S.turn(spin);
+    t = 0; hold = 0; shown = -1;
+    place();
+    caption(false);
+  }
+  function posAt(t) {
+    var n = run.length - 1;
+    if (t >= n) return run[n];
+    var k = Math.ceil(t - 1e-9), f = t - (k - 1), a = run[Math.max(0, k - 1)], b = run[k];
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f, a[2] + (b[2] - a[2]) * f];
+  }
+  function place() {
+    var p = posAt(t), k = Math.min(run.length - 1, Math.floor(t));
+    mover.place(p);
+    if (boat) boat.b.place(boat.pick && t >= boat.pick ? [p[0], p[1] + 0.1875, p[2]] : boat.spot);
+    if (k !== shown) {                                     // the trail so far: the flight, then the track
+      shown = k;
+      var trail = run.slice(0, k + 1).map(function (q) { return [q[0], q[1] + 0.35, q[2]]; });
+      S.path('fly', split ? trail.slice(0, Math.min(trail.length, split + 1)) : null, { key: 'run', xray: true });
+      S.path('run', trail.length > split ? trail.slice(split) : null, { key: 'sol', xray: true });
+    }
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  function caption(parked) {
+    if (!now) return;
+    var o = cur.opt, r = cur.r, y = r.y - Math.floor(r.y);
+    var how = !o ? 'placed by hand' : 'launched' + (o.boat ? ' with a boat' : '');
+    now.innerHTML = '<span class="mono">' + esc(cur.code) + '</span><span class="how">' + how + ', running ' + cur.facing + '</span>' +
+      (parked ? '<span class="res">parked at y <b class="mono">' + y.toFixed(10) + '</b>' + (E.isFloatcart(r.y) ? ' <span class="badge fc">floatcart</span>' : '') + '</span>'
+              : '<span class="res">running…</span>');
+  }
+
+  var last = 0;
+  function frame(ts) {
+    var dt = last ? Math.min(0.1, (ts - last) / 1000) : 0;
+    last = ts;
+    if (SPIN) { spin += dt * SPIN; S.turn(dt * SPIN); }
+    var n = run.length - 1;
+    if (t < n) {
+      t = Math.min(n, t + dt * 20 * SPEED);
+      place();
+      if (t >= n) caption(true);
+    } else if ((hold += dt) >= HOLD) show(randomTrack());
+    requestAnimationFrame(frame);
+  }
+  show(randomTrack());
+  requestAnimationFrame(frame);
+})();

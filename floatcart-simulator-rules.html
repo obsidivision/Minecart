@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Floatcart simulator rules · Minecraft Java 26.2</title>
-<meta name="description" content="Every Minecraft rule used to simulate the vertical floatcart challenge tick by tick in Java Edition 26.2: minecart physics, powered rails, collisions, honey, water and the piston tester.">
+<meta name="description" content="The Minecraft rules behind the floatcart simulator (Java 26.2): minecart physics, powered rails, collisions, honey, water and the piston tester.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
@@ -13,7 +13,7 @@
 <body>
 <div class="topbar">
   <div class="wrap bar">
-    <a class="wordmark" href="floatcart-3d.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <a class="wordmark" href="index.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
     <nav aria-label="Pages"><a href="floatcart-3d.html">Challenge</a><a href="floatcart-makers-3d.html">Makers</a><a href="floatcart-finder.html">Finder</a><a href="floatcart-simulator-rules.html" aria-current="page">Rules</a></nav>
     <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </div>
@@ -21,8 +21,8 @@
 <div class="wrap">
 <header class="site">
   <h1>Simulator rules</h1>
-  <p class="sub">Every rule the simulator applies, each taken from the decompiled source. In the game's order, they land on exactly the number FarCoolHat's stored attempt has.</p>
-  <p class="meta">68 rules in 9 topics. A <a href="#X3">floatcart</a> is a minecart whose top sits less than 0.00001 above a block boundary.</p>
+  <p class="sub">Every rule the simulator uses, taken from the game's code. Run in order, they give the exact number FarCoolHat's stored cart has.</p>
+  <p class="meta">68 rules in 9 topics. A <a href="#X3">floatcart</a> is a minecart whose top is less than 0.00001 above a block edge.</p>
 </header>
   <div class="rules">
     <aside class="side" aria-label="Search and topics">

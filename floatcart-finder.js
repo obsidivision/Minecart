@@ -1432,7 +1432,7 @@ function makeViewer3D() {
   var S = null;
   try { S = makeScene3D(el, { keep: true, labels: el.querySelector('.gl-labels'), view: { az: 1.12, el: 0.34 }, pad: { bottom: 44 } }); } catch (e) { S = null; }
   if (!S) {
-    el.innerHTML = '<div class="gl-none">This browser could not start WebGL, so the 3D view is unavailable.</div>';
+    el.innerHTML = '<div class="gl-none">3D view unavailable: WebGL didn\'t start in this browser.</div>';
     return { el: el, ok: false, load: function () {}, snapshot: function () { return null; } };
   }
   el.insertBefore(S.canvas, el.firstChild);
@@ -1572,6 +1572,7 @@ function makeViewer3D() {
 
 (function () {
   'use strict';
+  if (!document.getElementById('go')) return;           // another page (the homepage) only borrows the engine
   var E = makeEngine(), LW = makeLitematicWriter(), TS = makeTester(E, LW);
   function $(id) { return document.getElementById(id); }
   function each(sel, fn) { Array.prototype.forEach.call(document.querySelectorAll(sel), fn); }
@@ -1625,11 +1626,10 @@ function makeViewer3D() {
     var blocked = workerMode === 'none', cores = blocked ? 1 : CORES;
     secs /= cores;
     var len = rails === 'any'
-      ? 'Every track of up to ' + (s.dry + 2) + ' rails, and redstone-free tracks of up to ' + (s.plain + 2) + '.'
-      : 'Every redstone-free track of up to ' + (s.plain + 2) + ' rails.';
-    $('sizeHint').textContent = len + ' About ' + fmtCount(n) + ' tracks' + (vs.length > 1 ? ' over ' + vs.length + ' starts' : '') + ': ' + fmtTime(secs) + ' on ' + cores + ' core' + (cores === 1 ? '' : 's') + '.' +
-      (blocked ? ' This browser doesn\'t allow background workers here, so the search runs on the page itself, on one core.' +
-        ' Some browsers only allow them on a website, so on GitHub Pages it may use all ' + CORES + '.' : '');
+      ? 'Tracks up to ' + (s.dry + 2) + ' rails, or ' + (s.plain + 2) + ' without redstone.'
+      : 'Tracks up to ' + (s.plain + 2) + ' rails, no redstone.';
+    $('sizeHint').textContent = len + ' About ' + fmtCount(n) + ' tracks' + (vs.length > 1 ? ' (' + vs.length + ' starts)' : '') + ', ' + fmtTime(secs) + ' on ' + cores + ' core' + (cores === 1 ? '' : 's') + '.' +
+      (blocked ? ' Your browser blocks background workers here, so it runs on one core. Opened from a website it may use all ' + CORES + '.' : '');
   }
   each('input[name="rails"], input[name="size"]', function (el) { el.addEventListener('change', sizeHint); });
 
@@ -1644,9 +1644,9 @@ function makeViewer3D() {
   var STOP_WORD = { block: 'block', honey: 'honey block', bud_side: 'side of the bud', small_side: 'side of the small bud',
                     small_tip: 'tip of the small bud', medium_tip: 'tip of the medium bud', large_tip: 'tip of the large bud',
                     cluster_tip: 'tip of the cluster' };
-  var STOP_NAME = { block: 'plain block', honey: 'honey block', bud_side: 'medium amethyst bud, side on (a large bud or a cluster works the same)',
-                    small_side: 'small amethyst bud, side on', small_tip: 'small amethyst bud, tip first', medium_tip: 'medium amethyst bud, tip first',
-                    large_tip: 'large amethyst bud, tip first', cluster_tip: 'amethyst cluster, tip first' };
+  var STOP_NAME = { block: 'block', honey: 'honey block', bud_side: 'side of the medium bud (large or cluster works too)',
+                    small_side: 'side of the small bud', small_tip: 'tip of the small bud', medium_tip: 'tip of the medium bud',
+                    large_tip: 'tip of the large bud', cluster_tip: 'tip of the cluster' };
   var STOP_SHORT = { block: 'block', honey: 'honey block', bud_side: 'bud, side on', small_side: 'small bud, side on',
                      small_tip: 'small bud tip', medium_tip: 'medium bud tip', large_tip: 'large bud tip', cluster_tip: 'cluster tip' };
   function startSettings() {
@@ -1678,8 +1678,8 @@ function makeViewer3D() {
   var howFor = { empty: 'hand', boat: 'fly' }, howKind = 'empty';
   function startPhrase(v) {
     var side = ' from ' + (v.approach === 'front' ? 'in front' : 'behind');
-    return v.how === 'fly' ? ', the cart launched into the ' + STOP_WORD[v.stopper] + side
-      : ', the cart stopped against the ' + STOP_WORD[v.stopper] + ' on a loading run' + side;
+    return v.how === 'fly' ? ', launched into the ' + STOP_WORD[v.stopper] + side
+      : ', loading run into the ' + STOP_WORD[v.stopper] + side;
   }
   function syncCart() {
     var ss = startSettings(), sel = $('how'), kind = ss.boat ? 'boat' : 'empty';
@@ -1693,13 +1693,13 @@ function makeViewer3D() {
     $('stopBox').hidden = ss.how === 'hand';
     $('stopPick').hidden = ss.stopper === 'all';
     var vs = startVariants(ss), one = vs.length === 1 && vs[0].how !== 'hand' ? vs[0] : null;
-    var how = ss.how === 'hand' ? 'Placed by hand on the start rail, as in the maker schematics.'
-      : ss.how === 'both' ? 'Placed by hand on the start rail, or launched: the cart runs off a powered slope, stops dead in mid-air against the stopper and falls onto the start rail. Nothing to break either way.'
-      : ss.how === 'fly' ? (ss.boat ? 'It can\'t be placed by hand with a boat in it, so the download brings a launcher: the cart picks the boat up, ' : 'The download brings a launcher: the cart ') +
-        'runs off a powered slope, stops dead in mid-air against the stopper and falls onto the start rail. Nothing to break.'
-      : 'The download brings a loading run: the cart picks the boat up and stops dead against the stopper; break the glass under it and it drops onto the start rail.';
-    $('cartHint').textContent = how + (one ? ' It comes to rest there at fraction ' + E.boatFrac(one.stopper, $('facing').value, one.approach).toFixed(10) + '.'
-      : vs.length > 1 ? ' That makes ' + vs.length + ' starts, each searched in full.' : '');
+    var how = ss.how === 'hand' ? 'You place the cart on the start rail, like the maker schematics.'
+      : ss.how === 'both' ? 'Searches both: placed by hand, and launched off a slope into a stopper so it drops onto the start rail.'
+      : ss.how === 'fly' ? (ss.boat ? 'A cart with a boat can\'t be placed by hand, so it gets a launcher. It picks up the boat on the way down, ' : 'Comes with a launcher. The cart ') +
+        'flies off a powered slope, hits the stopper and drops onto the start rail. Nothing to break.'
+      : 'Comes with a loading run. The cart picks up the boat and stops against the stopper, then you break the glass under it to drop it onto the start rail.';
+    $('cartHint').textContent = how + (one ? ' It starts at ' + E.boatFrac(one.stopper, $('facing').value, one.approach).toFixed(10) + ' on the start rail.'
+      : vs.length > 1 ? ' ' + vs.length + ' starts to search.' : '');
     sizeHint();
   }
   each('input[name="cart"], input[name="stopAll"]', function (el) { el.addEventListener('change', syncCart); });
@@ -1728,9 +1728,9 @@ function makeViewer3D() {
     });
     if (sel.options[sel.selectedIndex].disabled) sel.value = axis === 'x' ? 'east' : 'south';
     $('axisHint').textContent = axis === 'y'
-      ? 'Height on the parking slope. A floatcart needs 0.3000000120 to 0.3000100119.'
-      : 'Break the parking rail when it has parked: the cart drops and keeps its ' + axis + '. Track running ' + sel.value +
-        ' (' + (axis === 'x' ? 'east or west' : 'north or south') + ' only).';
+      ? 'The cart\'s height on the parking slope. A floatcart needs 0.3000000120 to 0.3000100119.'
+      : 'Break the parking rail after the cart stops; it drops and keeps its ' + axis + '. The track has to run ' +
+        (axis === 'x' ? 'east or west' : 'north or south') + '.';
     readPos();
     readTarget();
     syncCart();
@@ -1750,22 +1750,22 @@ function makeViewer3D() {
     function bad(id, msg) { $(id).classList.add('bad'); hint.classList.add('err'); hint.textContent = msg; return null; }
     if (choice('mode') === 'value') {
       var v = num($('target').value), tol = num($('tol').value);
-      if (!isFinite(v)) return bad('target', 'Type a number, such as 0.3 or 64.3000050119.');
-      if (!(isFinite(tol) && tol >= 0 && tol < 0.5)) return bad('tol', 'The ± part must be a number from 0 to 0.5.');
+      if (!isFinite(v)) return bad('target', 'Enter a number, like 0.3 or 64.3000050119.');
+      if (!(isFinite(tol) && tol >= 0 && tol < 0.5)) return bad('tol', 'The ± value must be between 0 and 0.5.');
       var c = frac(v);
-      hint.textContent = (v !== c ? 'Using the fraction ' + c.toFixed(10) + '. ' : '') +
-        'The digits after the point. Within ±' + tol + ' counts as a match.';
+      hint.textContent = (v !== c ? 'Only the part after the point counts: ' + c.toFixed(10) + '. ' : 'Only the part after the point counts. ') +
+        'Anything within ±' + tol + ' is a match.';
       return { mode: 'value', target: c, lo: frac(c - tol), hi: frac(c + tol), w: tol };
     }
     var a = num($('lo').value), b = num($('hi').value);
-    if (!isFinite(a)) return bad('lo', 'Type a number, such as 0.3.');
-    if (!isFinite(b)) return bad('hi', 'Type a number, such as 0.31.');
-    if (Math.abs(b - a) >= 1) return bad('hi', 'The range must be less than one block wide.');
+    if (!isFinite(a)) return bad('lo', 'Enter a number, like 0.3.');
+    if (!isFinite(b)) return bad('hi', 'Enter a number, like 0.31.');
+    if (Math.abs(b - a) >= 1) return bad('hi', 'The range has to be under one block.');
     var lo = frac(a), hi = frac(b), w = lo <= hi ? (hi - lo) / 2 : (hi + 1 - lo) / 2;
     hint.textContent = (lo <= hi
-      ? 'Tracks whose ' + axis + ' fraction lands anywhere from ' + lo.toFixed(10) + ' to ' + hi.toFixed(10) + ' count as matches. '
-      : 'The range wraps past 1: fractions from ' + lo.toFixed(10) + ' up to 1, and from 0 to ' + hi.toFixed(10) + '. ') +
-      '"Closest first" lists the ones nearest its middle first.';
+      ? 'Anything from ' + lo.toFixed(10) + ' to ' + hi.toFixed(10) + ' is a match. '
+      : 'This wraps past 1: ' + lo.toFixed(10) + ' to 1, and 0 to ' + hi.toFixed(10) + '. ') +
+      'Closest first sorts by distance from the middle.';
     return { mode: 'range', target: frac(lo + w), lo: lo, hi: hi, w: w };
   }
   function readPos() {
@@ -1773,8 +1773,8 @@ function makeViewer3D() {
     var facing = $('facing').value, ok = x !== null && y !== null && z !== null;
     $('posHint').classList.toggle('err', !ok);
     $('posHint').textContent = ok
-      ? 'The block of the rail you place the cart on. The last digits of the cart\'s position depend on where the track is, so results are exact for this spot.'
-      : 'X and Z must be whole numbers inside the world border, Y a whole number from -64 to 318.';
+      ? 'Where the start rail goes. Results are exact for this spot; moving the track changes the last few digits.'
+      : 'X and Z must be whole numbers inside the world border, and Y a whole number from -64 to 318.';
     if (!ok) { $('posBox').open = true; return null; }
     $('posSum').textContent = x + ' ' + y + ' ' + z + ', track running ' + facing;
     return { p: [x, y, z], facing: facing };
@@ -1899,7 +1899,7 @@ function makeViewer3D() {
 
   function start() {
     var st = readAll();
-    if (!st) { $('status').textContent = 'Fix the highlighted setting first.'; return; }
+    if (!st) { $('status').textContent = 'Fix the highlighted setting.'; return; }
     if (workerMode === null) {                     // still finding out whether workers run here
       $('status').textContent = 'Starting…';
       probeWaiters = [start];
@@ -2016,7 +2016,7 @@ function makeViewer3D() {
     s.secs = (performance.now() - s.t0) / 1000;
     $('go').disabled = false; $('stop').disabled = true;
     $('prog').hidden = true;
-    $('status').textContent = s.error ? 'The search failed: ' + s.error : stopped ? 'Stopped.' :
+    $('status').textContent = s.error ? 'Search failed: ' + s.error : stopped ? 'Stopped.' :
       'Done in ' + s.secs.toFixed(1) + ' s' + (s.mainThread ? ' on one core' : '') + '.';
     renderRows(true);
   }
@@ -2031,8 +2031,8 @@ function makeViewer3D() {
     var rate = done / Math.max(0.05, secs), left = (s.total - done) / Math.max(1, rate);
     $('progText').textContent = Math.floor(pct) + '% · ' + fmtCount(done) + ' of about ' + fmtCount(s.total) + ' tracks · ' +
       secs.toFixed(1) + ' s' + (secs > 1.5 && left > 0.5 ? ' · ' + fmtTime(left) + ' left' : '') +
-      (s.mainThread === 'blocked' ? ' · on one core: this browser blocked background workers here'
-        : s.mainThread === 'stopped' ? ' · on one core: a background worker stopped'
+      (s.mainThread === 'blocked' ? ' · 1 core (workers blocked)'
+        : s.mainThread === 'stopped' ? ' · 1 core (a worker stopped)'
         : ' · ' + s.slots.length + ' worker' + (s.slots.length === 1 ? '' : 's'));
     if (s.dirty) renderRows(false);
   }
@@ -2053,18 +2053,17 @@ function makeViewer3D() {
     var st = s.st, rows = [];
     $('thVal').textContent = st.axis + ' fraction';
     $('thOff').textContent = st.mode === 'range' ? 'Inside by' : 'Off by';
-    if (!s.top.length) rows.push('<tr><td colspan="7" class="empty">' + (s.running ? 'Searching…' : 'No track parked.') + '</td></tr>');
+    if (!s.top.length) rows.push('<tr><td colspan="7" class="empty">' + (s.running ? 'Searching…' : 'No track parked the cart.') + '</td></tr>');
     s.top.forEach(function (r, i) { rows.push(rowHTML(r, i, st, !!s.opened[r.id], st.starts.length > 1 ? 'both' : 'code')); });
     snapCurrent();
     $('rows').innerHTML = rows.join('');
     syncViewer();
     var sum;
-    if (s.running) sum = 'Searching: ' + fmtInt(s.done) + ' of ' + fmtInt(s.tasks.length) + ' parts done. The list fills in as parts finish.';
+    if (s.running) sum = 'Searching… ' + fmtInt(s.done) + ' of ' + fmtInt(s.tasks.length) + ' parts done.';
     else {
-      sum = (s.stopped ? 'Stopped after ' : 'Tried ') + fmtInt(s.nodes) + ' tracks in ' + s.secs.toFixed(1) + ' s; ' + fmtInt(s.parked) + ' parked the cart. ' +
-        fmtInt(s.inside) + ' landed ' + targetText(st) + (st.axis === 'y' ? ', and ' + fmtInt(s.floats) + ' made a floatcart. ' : '. ') +
-        (s.top.length ? 'The ' + (st.sort === 'short' ? 'shortest matches, then the closest tracks,' : 'closest ' + s.top.length) + (s.stopped ? ' found so far' : '') +
-          ' are below, for a start rail at ' + st.pos.join(' ') + ' with the track running ' + st.facing +
+      sum = (s.stopped ? 'Stopped after ' : 'Tried ') + fmtInt(s.nodes) + ' tracks in ' + s.secs.toFixed(1) + ' s. ' + fmtInt(s.parked) + ' parked, ' +
+        fmtInt(s.inside) + ' landed ' + targetText(st) + (st.axis === 'y' ? ', ' + fmtInt(s.floats) + ' made a floatcart.' : '.') +
+        (s.top.length ? ' Results are for a start rail at ' + st.pos.join(' ') + ', track running ' + st.facing +
           (st.starts.length === 1 && st.starts[0].how !== 'hand' ? startPhrase(st.starts[0]) : '') + '.' : '');
     }
     $('summary').textContent = sum;
@@ -2125,7 +2124,7 @@ function makeViewer3D() {
     var b = E.build(code, origin, st.facing, o);
     var h = '<div class="dv">', drop = null, dropPath = [];
     if (!r.ok) {
-      h += '<p class="check-sum">The cart does not park on this track' + (sv.how === 'hand' ? '' : ' with this start') + ': ' + esc(r.why) + '.</p>';
+      h += '<p class="check-sum">The cart doesn\'t park on this track' + (sv.how === 'hand' ? '' : ' with this start') + ': ' + esc(r.why) + '.</p>';
     } else {
       var v = axisValue(r, st.axis), d = E.circDist(v, st.target), inside = E.inRange(frac(v), st.lo, st.hi);
       drop = E.dropY(code, origin, st.facing, r, o, dropPath);
@@ -2134,20 +2133,20 @@ function makeViewer3D() {
         '<span>' + st.axis + ' fraction <b class="mono">' + fmtFrac(v) + '</b>' +
           (st.axis === 'y' && E.isFloatcart(r.y) ? '<span class="badge fc">floatcart</span>' : inside ? '<span class="badge in">' + (st.mode === 'range' ? 'in range' : 'match') + '</span>' : '') + '</span>' +
         '<span>' + (st.mode === 'range' ? 'inside by' : 'off by') + ' <b class="mono">' + offText(rr, st) + '</b></span>' +
-        (sv.how === 'fly' ? '<span>lands on the start rail at tick <b>' + r.landTick + '</b>, parks at tick <b>' + r.ticks + '</b> (' + (r.ticks / 20).toFixed(1) + ' s)</span>'
+        (sv.how === 'fly' ? '<span>lands at tick <b>' + r.landTick + '</b>, parks at tick <b>' + r.ticks + '</b> (' + (r.ticks / 20).toFixed(1) + ' s)</span>'
           : '<span>parks after <b>' + r.ticks + ' ticks</b> (' + (r.ticks / 20).toFixed(1) + ' s)</span>') +
         '<span><b>' + b.rails.length + '</b> rails, <b>' + b.levers + '</b> lever' + (b.levers === 1 ? '' : 's') + ', <b>' + b.blocks.length + '</b> blocks</span></p>';
       if (sv.how === 'fly' && res.y !== undefined && (res.x !== r.x || res.y !== r.y || res.z !== r.z)) {
-        h += '<p class="facts drop">The flight, simulated in full, stops the cart a hair off where the search put it, so it parks ' +
-          fmtDist(Math.max(Math.abs(res.x - r.x), Math.abs(res.y - r.y), Math.abs(res.z - r.z))) + ' away from the listed spot. The numbers here are the full flight\'s.</p>';
+        h += '<p class="facts drop">The full flight parks it ' + fmtDist(Math.max(Math.abs(res.x - r.x), Math.abs(res.y - r.y), Math.abs(res.z - r.z))) +
+          ' away from the listed value. These numbers are from the full flight.</p>';
       }
       if (r.spread) {
-        h += '<p class="facts drop">Where the boat sits on its rail moves where the cart parks by up to ' + fmtDist(r.spread) +
-          '. The numbers here are for the boat in the middle of the rail.</p>';
+        h += '<p class="facts drop">Where you put the boat on its rail shifts the result by up to ' + fmtDist(r.spread) +
+          '. These numbers are for the middle of the rail.</p>';
       }
       h += '<p class="facts drop">' + (drop === Math.floor(drop)
-        ? 'Break the parking rail once it has parked, and the cart drops straight down to <b class="mono">y ' + drop + '</b>; x and z stay exactly the same.'
-        : 'Break the parking rail once it has parked, and the cart stays at <b class="mono">y ' + drop + '</b>: it is less than 0.0003 above the block below, and a move that small is never made (C4). x and z stay the same.') + '</p>';
+        ? 'Break the parking rail after it stops and the cart drops to <b class="mono">y ' + drop + '</b>. x and z don\'t change.'
+        : 'Break the parking rail after it stops and the cart stays at <b class="mono">y ' + drop + '</b>, since it\'s under 0.0003 above the block below (C4). x and z don\'t change.') + '</p>';
       var boatAt = b.loader ? b.loader.boat : b.launcher ? b.launcher.boat : null;
       var gd = { blocks: b.blocks, cart: [r.x, r.y, r.z], path: r.path, drop: st.axis === 'y' ? null : drop,
                  dropPath: st.axis === 'y' ? null : dropPath, boat: boatAt, boatPick: r.pickTick || 0 };
@@ -2164,7 +2163,7 @@ function makeViewer3D() {
       '<button type="button" class="btn sm" data-act="lite" data-id="' + id + '">Download .litematic</button>' +
       (r.ok && sv.how !== 'loader' ? '<button type="button" class="btn sm" data-act="tester" data-id="' + id + '">Download with tester</button>' : '') +
       '<button type="button" class="btn sm" data-act="verify" data-id="' + id + '">Check at ' + (st.axis === 'y' ? 60 : 15) + ' positions</button>' +
-      (sv.how === 'loader' ? '<span class="note">No automatic test for a loading run: the glass has to be broken by hand. Launched, the same start has one.</span>' : '') +
+      (sv.how === 'loader' ? '<span class="note">No tester for loading runs, since the glass has to be broken by hand. Use a launched start for one.</span>' : '') +
       '<span class="note" data-for="' + id + '"></span></div>';
     h += '@@VERIFY@@';
     h += buildTableHTML(b, st);
@@ -2180,40 +2179,34 @@ function makeViewer3D() {
     b.sources.forEach(function (s) { src[s.k] = s; });
     var rows = b.rails.map(function (rl) {
       var notes = [];
-      if (rl.k === 0) notes.push(b.loader ? 'the boat cart drops onto this rail' : b.launcher ? 'the launched cart falls onto this rail' : 'place the cart here');
-      if (rl.k === 0 && b.conductor) notes.push('concrete behind it at ' + xyz(b.conductor.concrete) + ', lever on the concrete\'s ' + b.side + ' side');
+      if (rl.k === 0) notes.push(b.loader ? 'the cart drops onto this rail' : b.launcher ? 'the cart lands here' : 'place the cart here');
+      if (rl.k === 0 && b.conductor) notes.push('concrete behind at ' + xyz(b.conductor.concrete) + ', lever on its ' + b.side + ' side');
       if (src[rl.k]) notes.push('concrete at ' + xyz(src[rl.k].concrete) + ', lever on its ' + b.side + ' side');
       else if (rl.kind === 'p' && b.poweredBy[rl.k] !== undefined && b.poweredBy[rl.k] !== rl.k) notes.push('powered through #' + b.poweredBy[rl.k]);
-      if (rl.k === last) notes.push('parking slope: the cart stops here' + (st.axis !== 'y' ? '; break this rail once it has' : ''));
+      if (rl.k === last) notes.push('parking slope, the cart stops here' + (st.axis !== 'y' ? ' (break it after)' : ''));
       return '<tr><td class="k">' + rl.k + '</td><td class="mono">' + xyz(rl.pos) + '</td><td>' + RAIL_WORD[rl.kind] + '</td><td>' +
         SHAPE_WORD[rl.s] + '</td><td>' + esc(notes.join('; ')) + '</td></tr>';
     }).join('');
     var caps = b.caps.map(function (c) { return 'at ' + xyz(c.glass); });
-    var note = 'Glass under every rail. Glass ' + caps.join(' and ') + ', with a plain rail on top of ' + (caps.length > 1 ? 'each' : 'it') +
-      ': the cart never reaches ' + (caps.length > 1 ? 'those rails' : 'that rail') + '; ' + (caps.length > 1 ? 'they make the end slopes' : 'it makes the parking slope') +
-      ' take their shape when placed. The track runs ' + st.facing + ', one block per row.';
+    var note = 'Glass under every rail. Also glass ' + caps.join(' and ') + ' with a plain rail on top, just to shape the ' +
+      (caps.length > 1 ? 'end slopes' : 'parking slope') + '. The track runs ' + st.facing + '.';
     var extra = '';
     if (b.loader) {
       var L = b.loader;
-      extra = '<p class="bnote">Loading run, plain rails on glass, ' + L.level + ' blocks above the start rail, ' +
-        (L.approach === 'front' ? 'over the track in front of it (the cart rolls back toward the start)' : 'behind the start') +
-        '. 1: place the minecart on the slope at ' + xyz(L.start) + '. 2: it picks up the boat waiting on the rail at ' + xyz(L.boatRail) +
-        '. 3: it stops dead against the ' + STOP_NAME[L.stopper] + ' at ' + xyz(L.stop) +
-        (L.support ? ', which grows out of the block at ' + xyz(L.support) : '') +
-        (L.mode === 'tip' ? ', after running off the end of the rail at ' + xyz(L.lastRail) + ' onto the glass under it' : ', on the rail at ' + xyz(L.lastRail)) +
-        '. 4: break the glass at ' + xyz(L.breakGlass) + ': the rail on it pops off and the cart drops straight down onto the start rail, at fraction ' +
-        L.frac.toFixed(10) + '. 5: it runs down the track and parks.</p>';
+      extra = '<p class="bnote">Loading run, ' + L.level + ' blocks up, ' + (L.approach === 'front' ? 'above the track in front' : 'behind the start') +
+        '. 1. Put a boat on the rail at ' + xyz(L.boatRail) + '. 2. Place the minecart on the slope at ' + xyz(L.start) +
+        '. 3. It picks up the boat and stops against the ' + STOP_NAME[L.stopper] + ' at ' + xyz(L.stop) +
+        (L.support ? ' (attached to ' + xyz(L.support) + ')' : '') + '. 4. Break the glass at ' + xyz(L.breakGlass) +
+        '. The cart drops onto the start rail at ' + L.frac.toFixed(10) + ' and runs the track.</p>';
     }
     if (b.launcher) {
       var La = b.launcher, n = 1;
-      extra = '<p class="bnote">Launcher, plain rails on glass ending on a powered slope, ' + La.level + ' blocks above the start rail, ' +
-        (La.approach === 'front' ? 'over the track in front of it (the cart flies back toward the start)' : 'behind the start') +
-        '. The lever at ' + xyz(La.lever) + ' powers the launch slope at ' + xyz(La.launchRail) + ' through the concrete beside it; it is on in the schematic. ' +
-        (La.boatRail ? n++ + ': put a boat on the rail at ' + xyz(La.boatRail) + '. ' : '') +
-        n++ + ': place the minecart on the ' + (La.boatRail ? 'top slope' : 'launch slope') + ' at ' + xyz(La.start) + '. ' +
-        n++ + ': it ' + (La.boatRail ? 'takes the boat aboard, ' : '') + 'runs off the foot of the launch slope and stops dead in mid-air against the ' +
-        STOP_NAME[La.stopper] + ' at ' + xyz(La.stop) + (La.support ? ', which grows out of the block at ' + xyz(La.support) : '') +
-        '. ' + n++ + ': it falls straight down onto the start rail, at rest at fraction ' + La.frac.toFixed(10) + ', runs down the track and parks. Nothing to break.</p>';
+      extra = '<p class="bnote">Launcher, ' + La.level + ' blocks up, ' + (La.approach === 'front' ? 'above the track in front' : 'behind the start') +
+        '. The lever at ' + xyz(La.lever) + ' powers the launch slope at ' + xyz(La.launchRail) + ' (already on in the schematic). ' +
+        (La.boatRail ? n++ + '. Put a boat on the rail at ' + xyz(La.boatRail) + '. ' : '') +
+        n++ + '. Place the minecart on the ' + (La.boatRail ? 'top slope' : 'launch slope') + ' at ' + xyz(La.start) + '. ' +
+        n++ + '. It ' + (La.boatRail ? 'picks up the boat, ' : '') + 'flies off the slope and hits the ' + STOP_NAME[La.stopper] + ' at ' + xyz(La.stop) +
+        (La.support ? ' (attached to ' + xyz(La.support) + ')' : '') + ', then drops onto the start rail at ' + La.frac.toFixed(10) + ' and runs the track. Nothing to break.</p>';
     }
     return '<div class="build"><table><thead><tr><th>#</th><th>x y z</th><th>Rail</th><th>Shape</th><th>Note</th></tr></thead><tbody>' + rows +
       '</tbody></table></div><p class="bnote">' + esc(note) + '</p>' + extra;
@@ -2227,7 +2220,7 @@ function makeViewer3D() {
     return V3;
   }
   function snapHTML(k) {
-    return '<img alt="3D view of this track" src="' + snaps[k] + '"><div class="glsnap"><span>click to turn it</span></div>';
+    return '<img alt="3D view of this track" src="' + snaps[k] + '"><div class="glsnap"><span>Click to rotate</span></div>';
   }
   function snapCurrent() {
     if (!V3 || !V3.ok || !v3Key || !v3Box || !v3Box.parentNode) return;
@@ -2251,7 +2244,7 @@ function makeViewer3D() {
     if (!boxes.length) { v3Box = null; return; }
     var v = viewer3();
     if (!v || !v.ok) {
-      boxes.forEach(function (b) { b.innerHTML = '<div class="gl-none">This browser could not start WebGL, so the 3D view is unavailable. The build list below still works.</div>'; });
+      boxes.forEach(function (b) { b.innerHTML = '<div class="gl-none">3D view unavailable: WebGL didn\'t start in this browser. The build list below still works.</div>'; });
       return;
     }
     var fresh = null, current = null;
@@ -2315,20 +2308,18 @@ function makeViewer3D() {
   function download(res, st) {
     var code = res.code, v = res.v, o = optsFor(v), origin = originFor(startOf(code), st.pos);
     var b = E.build(code, origin, st.facing, o), r = E.run(code, origin, st.facing, false, 20000, o);
-    var start = b.rails[0].pos, where = ' (exact for a start rail at ' + xyz(start) + ', track running ' + st.facing + ')';
-    var what = !r.ok ? 'it does not park'
-      : st.axis === 'y' ? 'it parks at y fraction ' + fmtFrac(r.y) + where
-      : 'it parks, and once the parking rail is broken its ' + st.axis + ' fraction is ' + fmtFrac(axisValue(r, st.axis)) + where;
-    var by = 'Found by the minecart alignment finder (created by 07km). ', levers = b.levers ? ' with the levers on' : '';
+    var start = b.rails[0].pos, where = ' (for a start rail at ' + xyz(start) + ', facing ' + st.facing + ')';
+    var what = !r.ok ? 'It doesn\'t park'
+      : st.axis === 'y' ? 'Parks at y ' + fmtFrac(r.y) + where
+      : 'After breaking the parking rail, ' + st.axis + ' is ' + fmtFrac(axisValue(r, st.axis)) + where;
+    var by = 'Minecart track by 07km. ', levers = b.levers ? ' (levers on)' : '';
     var desc = v.how === 'fly'
-      ? by + (v.boat ? 'Put a boat on the first flat rail of the launcher, below its top slopes, then place a plain minecart on the top slope' : 'Place a plain, empty minecart on the launch slope') +
-        levers + ': it ' + (v.boat ? 'takes the boat aboard, ' : '') + 'flies off the launch slope, stops dead in mid-air against the ' + STOP_WORD[v.stopper] +
-        ' and falls onto the start rail; ' + what + '. Nothing to break. Layout code: ' + code + '. Minecraft Java 26.2.'
+      ? by + (v.boat ? 'Put a boat on the first flat rail of the launcher, then a minecart on the top slope' : 'Place a minecart on the launch slope') +
+        levers + '. It flies off the launch slope into the ' + STOP_WORD[v.stopper] + ' and drops onto the start rail. ' + what + '. Layout: ' + code + '. Java 26.2'
       : v.how === 'loader'
-      ? by + 'Put a boat on the first flat rail of the loading run, below its top slopes, then place a plain minecart on the top slope' + levers +
-        ': it takes the boat aboard and stops against the ' + STOP_WORD[v.stopper] + '. Break the glass under it: the cart drops onto the start rail and ' + what +
-        '. Layout code: ' + code + '. Minecraft Java 26.2.'
-      : by + 'Place a plain, empty minecart on the start rail' + levers + '; ' + what + '. Layout code: ' + code + '. Minecraft Java 26.2.';
+      ? by + 'Put a boat on the first flat rail of the loading run, then a minecart on the top slope' + levers +
+        '. Once it stops against the ' + STOP_WORD[v.stopper] + ', break the glass under it. ' + what + '. Layout: ' + code + '. Java 26.2'
+      : by + 'Place a minecart on the start rail' + levers + '. ' + what + '. Layout: ' + code + '. Java 26.2';
     var enc = LW.encode(b.blocks, 'Cart track ' + code, '07km', desc);
     var rel = [start[0] - enc.offset[0], start[1] - enc.offset[1], start[2] - enc.offset[2]];
     var url = URL.createObjectURL(new Blob([LW.gzipStored(enc.bytes)], { type: 'application/octet-stream' }));
@@ -2336,7 +2327,7 @@ function makeViewer3D() {
     a.href = url; a.download = 'track-' + code.replace(/\s+/g, '-') + (v.how === 'hand' ? '' : '-' + v.how + '-' + v.stopper + '-' + v.approach) + '.litematic';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-    note(res.id, 'Saved. In the schematic, the start rail is ' + xyz(rel) + ' from its corner (' + enc.size.join(' × ') + ' blocks).');
+    note(res.id, 'Saved. The start rail is at ' + xyz(rel) + ' from the schematic\'s corner (' + enc.size.join(' × ') + ' blocks).');
   }
   // The track plus command blocks that test it by themselves after a paste (makeTester)
   function uid() {
@@ -2355,13 +2346,12 @@ function makeViewer3D() {
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     var v = f.end[st.axis === 'x' ? 0 : st.axis === 'z' ? 2 : 1];
-    note(res.id, 'Saved with an automatic test. Paste it in an open area of a creative world with commands allowed (on a server: op, and ' +
-      'enable-command-block=true). ' + (f.info.boat ? 'Command blocks summon the boat on its rail, then the cart on the launcher. '
-        : f.info.how === 'fly' ? 'Command blocks summon the cart on the launcher. ' : '') + 'About ' + f.info.secs + ' seconds later the chat shows the result' +
-      (st.axis === 'y' ? '' : ', after the test removes the parking rail') + '. Here it should say ' + (f.expect.passed ? 'PASS' : 'FAIL') +
+    note(res.id, 'Saved with a tester. Paste it in open space in a creative world with command blocks enabled. ' +
+      (f.info.boat ? 'It spawns the boat, then the cart on the launcher. ' : f.info.how === 'fly' ? 'It spawns the cart on the launcher. ' : '') +
+      'After about ' + f.info.secs + ' s the chat should say ' + (f.expect.passed ? 'PASS' : 'FAIL') +
       (st.axis === 'y' ? ' and ' + (f.expect.floatcart ? '"Floatcart!"' : '"Not a floatcart"') : '') +
-      ' (' + st.axis + ' fraction ' + fmtFrac(v) + '). For exactly these numbers, place it with the start rail at ' + xyz(f.startRail) +
-      ': that rail is ' + xyz(rel) + ' from the schematic\'s corner (' + f.size.join(' × ') + ' blocks).');
+      ' (' + st.axis + ' ' + fmtFrac(v) + '). For these exact numbers, put the start rail at ' + xyz(f.startRail) +
+      ', which is ' + xyz(rel) + ' from the schematic\'s corner (' + f.size.join(' × ') + ' blocks).');
   }
   function verify(res, st, btn) {
     btn.disabled = true;
@@ -2371,11 +2361,11 @@ function makeViewer3D() {
       var v = E.verify(res.code, { axis: st.axis, target: st.target, lo: st.lo, hi: st.hi, facing: st.facing,
                                    how: sv.how, boat: sv.boat, stopper: sv.stopper, approach: sv.approach });
       var good = v.parked === v.runs && (st.w === 0 || v.within === v.runs);
-      var txt = v.parked === 0 ? '<b>The cart parked in none of the ' + v.runs + ' runs.</b>' :
-        '<b>' + v.parked + ' of ' + v.runs + '</b> runs parked (15 world positions, out to ±29,999,000, ' +
-        (st.axis === 'y' ? '× 4 directions' : 'track running ' + st.facing) + (sv.how === 'fly' ? ', flight included' : '') + '). ' +
-        st.axis + ' fraction <span class="mono">' + v.min.toFixed(10) + '</span> to <span class="mono">' + v.max.toFixed(10) + '</span> (spread ' + fmtDist(v.max - v.min) + '). ' +
-        (st.w > 0 ? '<b>' + v.within + ' of ' + v.runs + '</b> ' + (st.mode === 'range' ? 'in the range' : 'within ±' + st.w + ' of the target') + '. ' : '') +
+      var txt = v.parked === 0 ? '<b>Didn\'t park in any of the ' + v.runs + ' runs.</b>' :
+        '<b>' + v.parked + ' of ' + v.runs + '</b> parked (15 spots up to ±29,999,000' +
+        (st.axis === 'y' ? ', 4 directions' : '') + (sv.how === 'fly' ? ', launched' : '') + '). ' +
+        st.axis + ' ranged <span class="mono">' + v.min.toFixed(10) + '</span> to <span class="mono">' + v.max.toFixed(10) + '</span>. ' +
+        (st.w > 0 ? '<b>' + v.within + ' of ' + v.runs + '</b> ' + (st.mode === 'range' ? 'in range' : 'on target') + '. ' : '') +
         (st.axis === 'y' ? '<b>' + v.floatcarts + ' of ' + v.runs + '</b> floatcarts.' : '');
       verifyCache[res.id + '|' + stKey(st)] = { html: txt, cls: good ? 'good' : 'bad' };
       each('[data-verify]', function (el) {
@@ -2395,11 +2385,11 @@ function makeViewer3D() {
     var out = $('checkOut');
     if (!code) { out.innerHTML = ''; CHECK = null; return; }
     var st = readAll();
-    if (!st) { out.innerHTML = '<p class="hint err">Fix the highlighted setting above first.</p>'; return; }
+    if (!st) { out.innerHTML = '<p class="hint err">Fix the highlighted setting first.</p>'; return; }
     var L;
-    try { L = E.parse(code); } catch (e) { out.innerHTML = '<p class="hint err">' + esc(e.message) + '. Codes start with S, Dr or Dp and end with E.</p>'; return; }
+    try { L = E.parse(code); } catch (e) { out.innerHTML = '<p class="hint err">' + esc(e.message) + '. A code starts with S, Dr or Dp and ends with E.</p>'; return; }
     var bad = E.problems(L.blocks);
-    if (bad.length) { out.innerHTML = '<p class="hint err">Not buildable: ' + esc(bad.join('; ')) + '.</p>'; return; }
+    if (bad.length) { out.innerHTML = '<p class="hint err">Can\'t be built: ' + esc(bad.join('; ')) + '.</p>'; return; }
     var origin = originFor(startOf(code), st.pos), many = st.starts.length > 1;
     var list = st.starts.map(function (v) {
       var r = { code: code, v: v, id: code + '|' + vKey(v), score: 0 };
@@ -2424,7 +2414,7 @@ function makeViewer3D() {
     snapCurrent();
     if (c.list.length === 1) h += detailHTML(c.list[0], st);
     else {
-      h += '<p class="bnote">The ' + c.list.length + ' starts, the closest first. Click one for its build and 3D view.</p>' +
+      h += '<p class="bnote">All ' + c.list.length + ' starts, closest first. Click one for details.</p>' +
         '<table class="res"><thead><tr><th>#</th><th>Start</th><th>' + st.axis + ' fraction</th><th class="num">' + (st.mode === 'range' ? 'Inside by' : 'Off by') +
         '</th><th class="num">Rails</th><th class="num">Levers</th><th><span class="visually-hidden">Details</span></th></tr></thead><tbody>' +
         c.list.map(function (r, i) { return rowHTML(r, i, st, !!c.opened[r.id], 'start'); }).join('') + '</tbody></table>';

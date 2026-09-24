@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Floatcart makers in 3D · Minecraft Java 26.2</title>
-<meta name="description" content="13 Minecraft rail tracks that turn a minecart into a floatcart with no timing. Each one in 3D, with the cart simulated tick by tick (Java 26.2, classic minecart physics).">
+<meta name="description" content="13 rail tracks that turn a minecart into a floatcart, no timing needed. Each one in 3D, tick by tick (Minecraft Java 26.2).">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
@@ -13,7 +13,7 @@
 <body>
 <div class="topbar">
   <div class="wrap full bar">
-    <a class="wordmark" href="floatcart-3d.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <a class="wordmark" href="index.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
     <nav aria-label="Pages"><a href="floatcart-3d.html">Challenge</a><a href="floatcart-makers-3d.html" aria-current="page">Makers</a><a href="floatcart-finder.html">Finder</a><a href="floatcart-simulator-rules.html">Rules</a></nav>
     <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </div>
@@ -21,7 +21,7 @@
 <div class="wrap full">
 <header class="site compact">
   <h1>Floatcart makers</h1>
-  <p class="sub">Thirteen tracks that park a minecart as a floatcart. Place it and walk away.</p>
+  <p class="sub">13 tracks that park a minecart as a floatcart. Place the cart and it does the rest.</p>
 </header>
 </div>
 <div class="viewer">
@@ -47,7 +47,7 @@
       <span class="tickread" aria-label="Tick"><b id="tickNum">0</b> / <span id="tickMax">0</span></span>
       <select id="speed" aria-label="Playback speed" title="Playback speed; 1&times; is 20 ticks a second"><option value="0.25">&#188;&times;</option><option value="0.5" selected>&#189;&times;</option><option value="1">1&times;</option></select>
     </div>
-    <div id="noGL" hidden>This browser couldn't start WebGL, so the 3D view is unavailable. The run data beside it still works.</div>
+    <div id="noGL" hidden>3D view unavailable: WebGL didn't start in this browser. The run data still works.</div>
   </div>
   <aside class="inspector" aria-label="Maker and result">
     <section class="insp">
@@ -78,8 +78,8 @@
     <section class="insp">
       <details class="more">
         <summary>About this view</summary>
-        <p>Each maker is one straight track running south (x east, z south), in the same coordinates as the schematics. A layout code has one token per rail: <b>F</b> flat, <b>U</b> slope up, <b>D</b> slope down, then <b>r</b> plain, <b>p</b> powered and on, <b>h</b> powered and off. <b>S</b> is a powered start rail with concrete behind it; <b>E</b> is the parking slope, a powered rail with no power, which brakes the cart.</p>
-        <p>Where the cart stops on the parking slope sets its height, so it has to be right to 0.00001 of a block. The search simulated about 3.6 million tracks; these 13 land inside the window, and each was checked at 15 world positions in all 4 directions. Glass is support; the plain rails past each end only give the end slopes their shape.</p>
+        <p>Each maker is a straight track running south, in the same coordinates as its schematic. Layout codes use one token per rail: <b>F</b> flat, <b>U</b> up, <b>D</b> down, then <b>r</b> plain, <b>p</b> powered, <b>h</b> powered but off. <b>S</b> is a powered start rail with concrete behind it, and <b>E</b> is the parking slope, an unpowered powered rail that brakes the cart.</p>
+        <p>Where the cart stops on the parking slope decides its height, so it has to land within 0.00001 of a block. Out of about 3.6 million tracks searched, these 13 make it, and each one was checked at 15 spots in all 4 directions. The glass is just support, and the extra rails past each end only shape the end slopes.</p>
       </details>
     </section>
   </aside>

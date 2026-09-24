@@ -1,4 +1,4 @@
-/* floatcart — shared by the four pages: the theme button and two formatting helpers.
+/* floatcart — shared by the five pages: the theme button and two formatting helpers.
    The saved theme is applied by a one-line script in each page's <head>, before first paint;
    this file only runs the button. The choice is shared by every page (and open tab). */
 var FC = (function () {
