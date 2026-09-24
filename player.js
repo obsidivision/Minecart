@@ -51,7 +51,7 @@ function makePlayer(cfg) {
     else off.textContent = (r.yfrac < GLO ? '◂ ' : '') + r.yfrac.toFixed(5) + (r.yfrac > GHI ? ' ▸' : '');
     if (inside) {
       ui.verdict.className = 'verdict good';
-      ui.verdict.textContent = 'Inside the window by ' + FC.small(Math.min(r.yfrac - lo, hi - r.yfrac)) + ': a floatcart';
+      ui.verdict.textContent = 'Floatcart, inside the window by ' + FC.small(Math.min(r.yfrac - lo, hi - r.yfrac));
     } else {
       ui.verdict.className = 'verdict bad';
       ui.verdict.textContent = r.yfrac < lo ? 'Misses: ' + (lo - r.yfrac).toFixed(5) + ' below the window'

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Minecart alignment finder · Minecraft Java 26.2</title>
-<meta name="description" content="Type the position you want a minecart to stop at. This page simulates millions of straight rail tracks in your browser and lists the ones that park a cart closest to it, floatcarts included.">
+<meta name="description" content="Enter where you want a minecart to stop. The finder tries millions of straight rail tracks in your browser and lists the closest, floatcarts included.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
@@ -25,7 +25,7 @@
 <body>
 <div class="topbar">
   <div class="wrap bar">
-    <a class="wordmark" href="floatcart-3d.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <a class="wordmark" href="index.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
     <nav aria-label="Pages"><a href="floatcart-3d.html">Challenge</a><a href="floatcart-makers-3d.html">Makers</a><a href="floatcart-finder.html" aria-current="page">Finder</a><a href="floatcart-simulator-rules.html">Rules</a></nav>
     <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </div>
@@ -33,7 +33,7 @@
 <div class="wrap">
 <header class="site">
   <h1>Alignment finder</h1>
-  <p class="sub">Say where a minecart should end up. Every straight track up to the size you pick is simulated, and the closest are listed.</p>
+  <p class="sub">Pick where you want the cart to stop. The finder tries every straight track up to the size you choose and lists the closest.</p>
 </header>
   <div class="finder">
     <section class="rail" aria-label="Search settings">
@@ -77,37 +77,37 @@
         <div class="tgt">
           <label class="visually-hidden" for="how">How the cart starts</label>
           <select id="how" style="width:100%">
-            <option value="hand">Start: placed on the start rail</option>
-            <option value="fly">Start: launched into a stopper, no block to break</option>
-            <option value="both">Start: either way</option>
-            <option value="loader">Start: loading run, then break one glass block</option>
+            <option value="hand">Start: placed by hand</option>
+            <option value="fly">Start: launched (no blocks to break)</option>
+            <option value="both">Start: by hand or launched</option>
+            <option value="loader">Start: loading run (break one glass)</option>
           </select>
         </div>
         <div class="tgt" id="stopBox" hidden>
           <div class="seg" role="group" aria-label="Stoppers to try">
-            <label title="Every stopper, met from either side: one full search each"><input type="radio" name="stopAll" value="all" checked><span>Try every stopper</span></label>
-            <label title="One stopper, met from one side"><input type="radio" name="stopAll" value="one"><span>Pick one</span></label>
+            <label title="All 8 stoppers from both sides, one search each"><input type="radio" name="stopAll" value="all" checked><span>Try every stopper</span></label>
+            <label title="One stopper, one side"><input type="radio" name="stopAll" value="one"><span>Pick one</span></label>
           </div>
           <div id="stopPick" hidden>
           <label class="visually-hidden" for="stopper">Stopper</label>
           <select id="stopper" style="width:100%">
-            <optgroup label="Side on: the cart meets its side">
-              <option value="block">Stopper: plain block</option>
-              <option value="honey">Stopper: honey block</option>
-              <option value="bud_side" selected>Stopper: medium, large or cluster bud (all 10/16 wide)</option>
-              <option value="small_side">Stopper: small bud (8/16 wide)</option>
+            <optgroup label="Cart hits the side">
+              <option value="block">Plain block</option>
+              <option value="honey">Honey block</option>
+              <option value="bud_side" selected>Medium bud, large bud or cluster</option>
+              <option value="small_side">Small bud</option>
             </optgroup>
-            <optgroup label="Tip first: the cart meets its tip">
-              <option value="small_tip">Stopper: small bud tip (3/16 long)</option>
-              <option value="medium_tip">Stopper: medium bud tip (4/16 long)</option>
-              <option value="large_tip">Stopper: large bud tip (5/16 long)</option>
-              <option value="cluster_tip">Stopper: cluster tip (7/16 long)</option>
+            <optgroup label="Cart hits the tip">
+              <option value="small_tip">Small bud tip</option>
+              <option value="medium_tip">Medium bud tip</option>
+              <option value="large_tip">Large bud tip</option>
+              <option value="cluster_tip">Cluster tip</option>
             </optgroup>
           </select>
           <label class="visually-hidden" for="approach">Which side it comes from</label>
           <select id="approach" style="width:100%">
-            <option value="behind" selected>From behind the start</option>
-            <option value="front">From in front, the cart comes back</option>
+            <option value="behind" selected>Coming from behind</option>
+            <option value="front">Coming from the front</option>
           </select>
           </div>
         </div>
@@ -139,7 +139,7 @@
           <label>Z<input type="text" id="pz" class="mono" inputmode="numeric" value="0" autocomplete="off"></label>
           <label class="wide">Track runs<select id="facing"><option value="south">south (+Z)</option><option value="north">north (&#8722;Z)</option><option value="east">east (+X)</option><option value="west">west (&#8722;X)</option></select></label>
         </div>
-        <p class="hint" id="posHint">The block of the rail you place the cart on. The last digits of the cart's position depend on where the track is, so results are exact for this spot.</p>
+        <p class="hint" id="posHint">Where the start rail goes. Results are exact for this spot; moving the track changes the last few digits.</p>
       </details>
       <div class="keep">
         <label>List<select id="keep"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></label>
@@ -163,12 +163,12 @@
       <div id="checkOut" aria-live="polite"></div>
 
       <div class="intro-empty" id="intro">
-        <h2>Find a track that parks a cart where you want it</h2>
-        <p>Every straight track the settings allow is simulated tick by tick, right here in your browser. The closest are listed here, each with a 3D view, its build and a schematic to download.</p>
+        <h2>Find a track that stops a cart where you want</h2>
+        <p>Everything runs in your browser. Each result comes with a 3D view, a build list and a schematic.</p>
         <ol>
-          <li><span>Pick what to aim for: the cart's height on the rail, or its x or z once you break the rail under it.</span></li>
-          <li><span>Type a target, or press <b>Floatcart window</b> for the famous one.</span></li>
-          <li><span>Press <b>Find tracks</b>. A normal search takes a few seconds.</span></li>
+          <li><span>Choose what to aim for: the cart's height, or its x or z after you break the rail under it.</span></li>
+          <li><span>Enter a target, or click <b>Floatcart window</b>.</span></li>
+          <li><span>Click <b>Find tracks</b>. A normal search takes a few seconds.</span></li>
         </ol>
       </div>
 
@@ -183,21 +183,21 @@
           <thead><tr><th>#</th><th>Layout</th><th id="thVal">y fraction</th><th class="num" id="thOff">Off by</th><th class="num">Rails</th><th class="num">Levers</th><th><span class="visually-hidden">Details</span></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
-        <p class="legend">One token per rail: <span class="tok st">Dr</span> start on a slope down (<span class="tok st p">Dp</span> powered, <span class="tok st p">S</span> flat with a conductor behind it), then <b>F</b>&#8202;/&#8202;<b>U</b>&#8202;/&#8202;<b>D</b> flat, up, down, each <b>r</b> plain, <span class="tok p">p</span> powered on or <span class="tok h">h</span> off, ending on <span class="tok e">E</span>, the parking slope. When a search tries several starts, the line under a layout says how the cart starts. Click a row for the build, a 3D view and the schematic.</p>
+        <p class="legend">Each token is one rail. <span class="tok st">Dr</span> starts on a down slope (<span class="tok st p">Dp</span> powered, <span class="tok st p">S</span> flat with a block behind it). Then <b>F</b>&#8202;/&#8202;<b>U</b>&#8202;/&#8202;<b>D</b> for flat, up, down, and <b>r</b> plain, <span class="tok p">p</span> powered or <span class="tok h">h</span> powered but off. <span class="tok e">E</span> is the parking slope. If you searched more than one start, it's shown under the layout. Click a row for details.</p>
       </section>
 
       <section class="notes" aria-labelledby="h-notes">
         <h2 id="h-notes">How it works</h2>
-        <p>A track is one straight lane of rails. The cart rolls from the first rail and stops on the last one, a powered rail that is off, sloping up. How far up it gets is the alignment: y = 1/16 plus that.</p>
+        <p>A track is a straight line of rails. The cart rolls from the first rail and stops on the last one, an unpowered powered rail on a slope. How far up that slope it stops sets its height.</p>
         <dl>
-          <div><dt>The game's physics</dt><dd>A port of the simulator that lands on exactly the number FarCoolHat's stored cart has, confirmed in game on 13 tracks. 7,980 runs against the original, every digit the same.</dd></div>
-          <div><dt>x and z</dt><dd>Break the parking rail: a parked cart has no speed, so it drops straight down and keeps both. Checked on 2,100 drops.</dd></div>
-          <div><dt>Starting against a stopper</dt><dd>Instead of being placed, a cart can stop dead against a stopper and come to rest on the start rail. Where it stops sets where it starts: side on, a bud's width counts (medium, large and cluster are equally wide); tip first, its length does; coming from the other end mirrors it. That makes 16 starts: <i>Try every stopper</i> searches them all, <i>Pick one</i> just the one you choose.</dd></div>
-          <div><dt>The launcher</dt><dd>FarCoolHat's stopper: the cart runs off a powered slope, stops dead in mid-air against the stopper and falls straight onto the start rail, so there is nothing to break. The flight is simulated tick by tick, collisions included; it has not been tried in game yet.</dd></div>
-          <div><dt>Boat carts</dt><dd>A cart with a boat can't be placed by hand: it picks the boat up on the launcher, or on a loading run whose last glass block you break to drop it. A rider moves 0.75 of its speed and keeps 99.7% of it each tick, so these are different tracks.</dd></div>
-          <div><dt>Where you build</dt><dd>It changes the last digits. <i>Check at 60 positions</i> reruns a track across the world, in all four directions.</dd></div>
-          <div><dt>Nothing may touch the cart</dt><dd>Over 0.1 blocks/tick it picks up whatever it can push within 0.2 blocks, and a passenger changes everything. Keep the track clear, and leave the experimental minecart changes off.</dd></div>
-          <div><dt>Downloads</dt><dd>The schematic alone, or with command blocks that place the cart (on the launcher, with its boat, for a launched start), wait, and report the result in chat with a wool marker.</dd></div>
+          <div><dt>Physics</dt><dd>It matches FarCoolHat's stored cart exactly and was confirmed in game on 13 tracks.</dd></div>
+          <div><dt>x and z</dt><dd>Break the parking rail and the cart drops straight down, keeping its x and z.</dd></div>
+          <div><dt>Stoppers</dt><dd>Instead of placing the cart, you can stop it against a block or an amethyst bud so it settles on the start rail. Each stopper, and the side the cart comes from, gives a different starting spot, 16 in all. <i>Try every stopper</i> searches them all.</dd></div>
+          <div><dt>The launcher</dt><dd>Based on FarCoolHat's stopper. The cart runs off a powered slope, hits the stopper in mid-air and drops onto the start rail, so there's nothing to break. It's simulated but hasn't been tested in game yet.</dd></div>
+          <div><dt>Boat carts</dt><dd>You can't place a cart with a boat already in it, so it picks the boat up on the way, on the launcher or on a loading run. A cart with a passenger moves differently, so it gets its own results.</dd></div>
+          <div><dt>Where you build</dt><dd>Moving the track changes the last few digits. <i>Check at 60 positions</i> reruns it around the world in all four directions.</dd></div>
+          <div><dt>Keep it clear</dt><dd>A moving cart grabs mobs and boats it passes, which ruins the run. Keep the track clear and leave the experimental minecart changes off.</dd></div>
+          <div><dt>Downloads</dt><dd>The schematic on its own, or with command blocks that run the cart and post the result in chat.</dd></div>
         </dl>
       </section>
     </section>
