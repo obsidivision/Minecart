@@ -16,11 +16,11 @@
   floatcart-finder.js beside it. Aims for the parked cart's y, or its x / z after the parking
   rail is broken (the cart then falls straight down, see dropY), at one value or a range.
 
-  For whoever maintains it: the physics engine (makeEngine, in floatcart-finder.js) is a
-  line-by-line port of the Python simulator (mcredstone/physics.py) for straight rail tracks,
-  checked against it to the last digit (7,980 full runs, every search outcome at depths 3 to 5,
-  and the full searches that found the 13 floatcart makers). The search runs in Web Workers
-  made from makeEngine's own source. Built by build_finder.py from this file and the finder_*.js parts.
+  For whoever maintains it: floatcart-finder.js is the source, edited directly; there is no
+  build step. Its physics engine (makeEngine) began as a port of the now retired Python
+  simulator, checked against it to the last digit (7,980 full runs, every search outcome at
+  depths 3 to 5, and the full searches that found the 13 floatcart makers). The search runs in
+  Web Workers made from makeEngine's own source.
 -->
 <body>
 <div class="topbar">
@@ -84,13 +84,17 @@
           </select>
         </div>
         <div class="tgt" id="stopBox" hidden>
+          <div class="seg" role="group" aria-label="Stoppers to try">
+            <label title="Every stopper, met from either side: one full search each"><input type="radio" name="stopAll" value="all" checked><span>Try every stopper</span></label>
+            <label title="One stopper, met from one side"><input type="radio" name="stopAll" value="one"><span>Pick one</span></label>
+          </div>
+          <div id="stopPick" hidden>
           <label class="visually-hidden" for="stopper">Stopper</label>
           <select id="stopper" style="width:100%">
-            <option value="all" selected>Stopper: every one, tried automatically</option>
             <optgroup label="Side on: the cart meets its side">
               <option value="block">Stopper: plain block</option>
               <option value="honey">Stopper: honey block</option>
-              <option value="bud_side">Stopper: medium, large or cluster bud (all 10/16 wide)</option>
+              <option value="bud_side" selected>Stopper: medium, large or cluster bud (all 10/16 wide)</option>
               <option value="small_side">Stopper: small bud (8/16 wide)</option>
             </optgroup>
             <optgroup label="Tip first: the cart meets its tip">
@@ -102,10 +106,10 @@
           </select>
           <label class="visually-hidden" for="approach">Which side it comes from</label>
           <select id="approach" style="width:100%">
-            <option value="all" selected>From either side, tried automatically</option>
-            <option value="behind">From behind the start</option>
+            <option value="behind" selected>From behind the start</option>
             <option value="front">From in front, the cart comes back</option>
           </select>
+          </div>
         </div>
         <p class="hint" id="cartHint"></p>
       </fieldset>
@@ -188,12 +192,12 @@
         <dl>
           <div><dt>The game's physics</dt><dd>A port of the simulator that lands on exactly the number FarCoolHat's stored cart has, confirmed in game on 13 tracks. 7,980 runs against the original, every digit the same.</dd></div>
           <div><dt>x and z</dt><dd>Break the parking rail: a parked cart has no speed, so it drops straight down and keeps both. Checked on 2,100 drops.</dd></div>
-          <div><dt>Starting against a stopper</dt><dd>Instead of being placed, a cart can stop dead against a stopper and come to rest on the start rail. Where it stops sets where it starts: side on, a bud's width counts (medium, large and cluster are equally wide); tip first, its length does; coming from the other end mirrors it. That makes 16 starts, and the search tries every one unless you pick one.</dd></div>
+          <div><dt>Starting against a stopper</dt><dd>Instead of being placed, a cart can stop dead against a stopper and come to rest on the start rail. Where it stops sets where it starts: side on, a bud's width counts (medium, large and cluster are equally wide); tip first, its length does; coming from the other end mirrors it. That makes 16 starts: <i>Try every stopper</i> searches them all, <i>Pick one</i> just the one you choose.</dd></div>
           <div><dt>The launcher</dt><dd>FarCoolHat's stopper: the cart runs off a powered slope, stops dead in mid-air against the stopper and falls straight onto the start rail, so there is nothing to break. The flight is simulated tick by tick, collisions included; it has not been tried in game yet.</dd></div>
           <div><dt>Boat carts</dt><dd>A cart with a boat can't be placed by hand: it picks the boat up on the launcher, or on a loading run whose last glass block you break to drop it. A rider moves 0.75 of its speed and keeps 99.7% of it each tick, so these are different tracks.</dd></div>
           <div><dt>Where you build</dt><dd>It changes the last digits. <i>Check at 60 positions</i> reruns a track across the world, in all four directions.</dd></div>
           <div><dt>Nothing may touch the cart</dt><dd>Over 0.1 blocks/tick it picks up whatever it can push within 0.2 blocks, and a passenger changes everything. Keep the track clear, and leave the experimental minecart changes off.</dd></div>
-          <div><dt>Downloads</dt><dd>The schematic alone, or with command blocks that place the cart, wait, and report the result in chat with a wool marker.</dd></div>
+          <div><dt>Downloads</dt><dd>The schematic alone, or with command blocks that place the cart (on the launcher, with its boat, for a launched start), wait, and report the result in chat with a wool marker.</dd></div>
         </dl>
       </section>
     </section>

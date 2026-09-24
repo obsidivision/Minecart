@@ -288,6 +288,7 @@ details.more > summary:hover { color: var(--fg); }
 .inrow .word { color: var(--fg-3); font-size: 13px; }
 .tgt { margin-top: 10px; }
 .tgt select ~ select { margin-top: 6px; }
+#stopPick { margin-top: 8px; }
 #target, #lo, #hi { flex: 1 1 9em; width: 9em; }
 #tol { width: 7.2em; }
 .presets { margin-top: 8px; }

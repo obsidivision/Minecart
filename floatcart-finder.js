@@ -1,27 +1,28 @@
 /* Minecart alignment finder (floatcart-finder.html) — created by 07km.
 
-   Plain JavaScript, no framework and no libraries: this file holds the whole page script,
-   exactly as its 5 source files are written, comments and all. Nothing is minified, and
-   nothing is fetched at run time. Built by mcredstone/finder/build_finder.py from:
-     finder_engine.js       Physics and search: a line-by-line port of mcredstone/physics.py for straight rail
-                            tracks, plus the depth-first search over layouts.
-     finder_litematic.js    Writes .litematic files, the same bytes as mcredstone/schematic_writer.py.
-     finder_tester.js       The "Download with tester" build: command blocks that test a track in game.
-     finder_3d.js           The 3D view of one track: scene3d.js (shared with the two 3D pages) in a box that
-                            moves into whichever result is open.
-     finder_app.js          The page itself: reading the settings, running the search in workers, the results
-                            table, the details, the downloads and the checks.
+   Plain JavaScript, no framework and no libraries. This file is the page script and its
+   source: edit it directly (there is no build step any more). Nothing is minified, and
+   nothing is fetched at run time. Its parts, in order:
+     Engine        Physics and search: straight rail tracks, the launcher's flight, and the
+                   depth-first search over layouts.
+     Litematic     Writes .litematic files.
+     Tester        The "Download with tester" build: command blocks that test a track in game.
+     3D view       One track in 3D: scene3d.js (shared with the two 3D pages) in a box that
+                   moves into whichever result is open.
+     App           The page itself: reading the settings, running the search in workers, the
+                   results table, the details, the downloads and the checks.
 
-   The physics are a port of the Python simulator (mcredstone/physics.py) for straight rail
-   tracks, checked against it to the last digit; the search runs in Web Workers made from
-   makeEngine's own source, so it works from a file:// URL as well as from a web server.
-   Needs site.js and scene3d.js (loaded first by the page) for the theme and the 3D view. */
+   The physics began as a port of the Python simulator (physics.py), checked against it to the
+   last digit; the Python is retired and this is now the reference. The search runs in Web
+   Workers made from makeEngine's own source, so it works from a file:// URL as well as from a
+   web server. Needs site.js and scene3d.js (loaded first by the page) for the theme and the 3D
+   view. */
 
 /* ============================================================================================
-   finder_engine.js
+   Engine
 
-   Physics and search: a line-by-line port of mcredstone/physics.py for straight rail
-   tracks, plus the depth-first search over layouts. The Web Workers are built from
+   Physics and search for straight rail tracks, plus the depth-first search over layouts.
+   The Web Workers are built from
    makeEngine's own source, so this part must stay self-contained.
    ============================================================================================ */
 
@@ -29,23 +30,23 @@
   Floatcart finder engine: Minecraft Java 26.2 classic minecart physics for straight rail
   tracks, and a brute-force search over track layouts.
 
-  The physics is a line-by-line port of physics.py's rail engine (itself a port of the
-  game's classic minecart code, OldMinecartBehavior), keeping the same order of operations
-  so every double rounds the same way. physics.py reproduced 13 carts in the real game to
-  the last digit. Only what a straight, dry track needs is here: slopes, plain rails,
+  The physics follows the game's classic minecart code (OldMinecartBehavior) line by line,
+  keeping the same order of operations so every double rounds the same way. It began as a
+  port of the retired Python simulator, which reproduced 13 carts in the real game to the
+  last digit. Only what a straight, dry track needs is here: slopes, plain rails,
   powered rails (on and off), the standing start and its conductor block, rail lookups and
   track height, the straight fall when the parking rail is broken (dropY), and the flight of a
   cart launched into a stopper (launchRun), which gives the challenge's as-built run, ticks 7
   to 18, to the last digit.
 
-  Checked against physics.py to the last digit: 7,980 full runs (random and parked layouts, 15
-  world placements, 4 directions), every parked outcome of the depth 3-5 searches, the
-  totals of the searches that found the 13 floatcart makers, and 2,100 rail-break drops
-  (test_engine.js, ref_cases.py, drop_check.py).
+  Checked against the Python to the last digit before it was retired: 7,980 full runs (random
+  and parked layouts, 15 world placements, 4 directions), every parked outcome of the depth
+  3-5 searches, the totals of the searches that found the 13 floatcart makers, and 2,100
+  rail-break drops.
 
   makeEngine() returns the API. The same function runs in the page and inside the Web
   Workers (the page turns its source into a worker script), and in Node:
-      var E = require('./finder_engine.js')();
+      var E = new Function(src + '\nreturn makeEngine;')()();   // src: this file up to the Litematic part
       E.run('Dr Dr Fr Fr Fp Up Fr Fr Ur E', [0, 65, 0], 'south')   // origin: entry level
 */
 function makeEngine() {
@@ -139,7 +140,7 @@ function makeEngine() {
   // Collisions (C1-C5). On these tracks every other block is a rail, sits below the cart's
   // feet, or is beside the track outside its hitbox, so the only block a cart can run into
   // is the conductor behind a standing start (T.stop), when it rolls back to the start. A move
-  // is cut short against its box exactly as physics.py's collide() and entity_move() do.
+  // is cut short against its box exactly as the game's collide() and move() do.
   function findIndex(lo, hi, v) { return v < lo ? -1 : v < hi ? 0 : 1; }
   function voxelCollide(s, axis, box, distance) {
     if (Math.abs(distance) < EPS) return 0.0;
@@ -281,7 +282,7 @@ function makeEngine() {
     return out;
   }
   function shapeOf(f, s) { return s === 'F' ? f.flat : s === 'U' ? f.up : f.down; }
-  // The loading run of a boat track (mcredstone/boat_prefab.py). The cart is placed on its top
+  // The loading run of a boat track. The cart is placed on its top
   // slope, picks the boat up on the second, is sped up by a third and stops dead against the
   // stopper; breaking the glass under its last rail drops it onto the start rail. It comes
   // from behind the start or from in front of it; in front it runs above the track, as high as
@@ -490,7 +491,7 @@ function makeEngine() {
   /* ---------- boat carts ----------
      A cart that carries a boat cannot be placed by hand: it has to pick the boat up while it
      rolls, and then stop dead against a stopper so that what comes next is exact. The loader
-     (mcredstone/boat_prefab.py, boat_loader.py), or the launcher above, hands the track a cart
+     or the launcher above, hands the track a cart
      at rest on the start rail, at the fraction below, with these two changes to its physics:
        B1 every move is 0.75 x the speed, B2 it keeps 99.7% of its speed a tick, not 96%
        (OldMinecartBehavior, both keyed on isVehicle()).
@@ -501,8 +502,8 @@ function makeEngine() {
        for small (8/16). Tip first, a bud stands in the drop block pointing back at the cart,
        and the face is its length short of the far side: 3, 4, 5 or 7 sixteenths (C11).
        From in front of the start the cart rolls the other way, which mirrors the fraction.
-     The stop can come out a unit or two in the last place off this (boat_prefab.py), which
-     changes the parked position by at most its last digit (boat_parity.py). */
+     Simulated in full, the stop can come out a unit or two in the last place off this, which
+     changes the parked position by at most its last digit (launchRun shows it for the launcher). */
   var BUDS = { small_amethyst_bud: [3, 8], medium_amethyst_bud: [4, 10], large_amethyst_bud: [5, 10], amethyst_cluster: [7, 10] };
   var STOPPERS = {
     block: { block: 'minecraft:white_concrete', mode: 'side' },
@@ -1045,14 +1046,13 @@ function makeEngine() {
 }
 
 /* ============================================================================================
-   finder_litematic.js
+   Litematic
 
-   Writes .litematic files, the same bytes as mcredstone/schematic_writer.py.
+   Writes .litematic files.
    ============================================================================================ */
 
 /*
-  Litematica (.litematic) writer for the floatcart finder: the same file layout as
-  schematic_writer.py (format Version 7, SubVersion 1, MinecraftDataVersion 4903 = Java 26.2).
+  Litematica (.litematic) writer for the floatcart finder (format Version 7, SubVersion 1, MinecraftDataVersion 4903 = Java 26.2).
   gzip -> big-endian NBT -> one region whose corner is the blocks' minimum corner, block
   states tightly bit-packed into 64-bit words (air = palette entry 0, index y*w*l + z*w + x).
 */
@@ -1115,8 +1115,7 @@ function makeLitematicWriter() {
   }
 
   // blocks: [{x, y, z, name, props}]; tileEntities (optional): [{x, y, z, data}], data being
-  // [[tag, value], ...] in the format above, written with region-relative x, y, z first (as
-  // schematic_writer.py). -> {bytes (uncompressed NBT), offset, size}
+  // [[tag, value], ...] in the format above, written with region-relative x, y, z first. -> {bytes (uncompressed NBT), offset, size}
   function encode(blocks, name, author, description, nowMs, tileEntities) {
     var lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
     blocks.forEach(function (b) {
@@ -1194,16 +1193,15 @@ function makeLitematicWriter() {
 }
 
 /* ============================================================================================
-   finder_tester.js
+   Tester
 
    The "Download with tester" build: command blocks that test a track in game.
-   Reference implementation: mcredstone/finder/tester.py.
    ============================================================================================ */
 
 /*
   Single-track tester for the floatcart finder: a track plus command blocks that test it by
-  themselves once the schematic is pasted. A port of tester.py, which it must match byte for
-  byte (see tester.py for the design; it reuses test_rig.py's parts, which worked in game).
+  themselves once the schematic is pasted. Its design began in the retired Python tester,
+  whose parts worked in game; this is now the reference.
   makeTester(E, LW): E = makeEngine(), LW = makeLitematicWriter().
 */
 function makeTester(E, LW) {
@@ -1248,12 +1246,17 @@ function makeTester(E, LW) {
       ['back_text', side(['', '', '', ''])], ['components', ['compound', []]]];
   }
 
-  // Blocks, block entities and info for one tester. startRail: the block of the rail the
-  // cart goes on; ticks: how long the cart takes to park (from E.run).
-  function build(code, startRail, facing, axis, lo, hi, uid, ticks) {
-    var L = E.parse(code), start = L.start;
+  // Blocks, block entities and info for one tester. startRail: the block of the start rail;
+  // ticks: how long the cart takes to park (from E.run). opt: the start, as E.run takes it. A
+  // cart placed by hand is summoned on the start rail; a launched one (opt.how 'fly') on the
+  // launcher where it would be placed (M3), and with opt.boat a boat is summoned on its rail
+  // first, for the cart to take aboard on its way down. A loading run needs glass broken
+  // mid-run, which the commands can't time, so it has no tester.
+  function build(code, startRail, facing, axis, lo, hi, uid, ticks, opt) {
+    var L = E.parse(code), start = L.start, how = E.startHow(opt);
+    if (how === 'loader') throw new Error('a cart that starts on a loading run has no tester: launch it instead');
     var origin = start === 'S' ? [startRail[0], startRail[1], startRail[2]] : [startRail[0], startRail[1] + 1, startRail[2]];
-    var b = E.build(code, origin, facing), f = E.FACINGS[facing];
+    var b = E.build(code, origin, facing, opt), f = E.FACINGS[facing], La = b.launcher;
     var ys = b.ys, last = ys.length - 1;
     if (axis !== 'y' && (axis === 'x') !== (f.du !== 0)) throw new Error('x needs a track running east or west, z north or south');
     function at(k, y, side) { side = side || 0; return [origin[0] + f.du * k + f.lu * side, origin[1] + y, origin[2] + f.dv * k + f.lv * side]; }
@@ -1266,7 +1269,7 @@ function makeTester(E, LW) {
       taken[key] = q; list.push(q);
       if (data) tes.push({ x: p[0], y: p[1], z: p[2], data: data });
     }
-    var obj = 'fct' + uid, tag = obj, ptag = 'fctp' + uid, ftag = 'fctf' + uid;
+    var obj = 'fct' + uid, tag = obj, ptag = 'fctp' + uid, ftag = 'fctf' + uid, btag = 'fctb' + uid;
     var minY = Infinity;
     b.blocks.forEach(function (q) { minY = Math.min(minY, q.y); });
     var yb = minY - origin[1] - 2, t = '#t ' + obj + ' matches', tb = null, check;
@@ -1275,10 +1278,13 @@ function makeTester(E, LW) {
     var limit = Math.max(1000, check + 10);
 
     var lift = start === 'S' ? 0.0625 : 0.5625, dy = (ys[0] + lift) - (yb + 0.5);
-    put(at(0, yb), cmdState('repeat', 'up'), cmdData(
-      'execute if score ' + t + ' ' + SUMMON_T + '.. unless entity @e[type=minecart,tag=' + tag + '] run summon minecart ' +
-      '~ ~' + plain(dy) + ' ~ {Tags:["' + tag + '"],CustomName:"Track test",CustomNameVisible:1b}', true));
-    var park = at(last, ys[last]), info = { code: code, axis: axis, lo: lo, hi: hi, check: check, tb: tb, summon: at(0, yb), dy: dy, park: park };
+    function summonCart(dyy) {
+      return 'execute if score ' + t + ' ' + SUMMON_T + '.. unless entity @e[type=minecart,tag=' + tag + '] run summon minecart ' +
+        '~ ~' + plain(dyy) + ' ~ {Tags:["' + tag + '"],CustomName:"Track test",CustomNameVisible:1b}';
+    }
+    if (!La) put(at(0, yb), cmdState('repeat', 'up'), cmdData(summonCart(dy), true));
+    var park = at(last, ys[last]), info = { code: code, axis: axis, lo: lo, hi: hi, check: check, tb: tb, summon: La ? null : at(0, yb), dy: dy, park: park,
+                                            how: how, boat: !!(La && La.boat) };
     if (axis !== 'y') {
       put(at(last, yb), cmdState('repeat', 'up'), cmdData('execute if score ' + t + ' ' + tb + ' run setblock ~ ~' + (ys[last] - yb) + ' ~ air', true));
       put(at(last, yb - 1), cmdState('repeat', 'up'), cmdData(
@@ -1340,7 +1346,24 @@ function makeTester(E, LW) {
     }
     lines.push('execute if score ' + t + ' ' + (check + 4) + ' run tellraw @a ["",{"text":"Exact cart position [x, y, z]: ","color":"gray"},' +
       '{"entity":"@e[type=minecart,tag=' + tag + ',limit=1]","nbt":"Pos"}]');
+    if (La && La.boat) lines.splice(3, 0, 'execute if score ' + t + ' 9 run tp @e[type=oak_boat,tag=' + btag + '] ~ -400 ~');
     for (var k = 0; k < lines.length; k++) put(at(k, yb, 2), cmdState('repeat', 'up'), cmdData(lines[k], true));
+    // A launched cart: summoned where it would be placed on the launcher, by a command block in the
+    // first free cell under that spot; its boat 20 ticks earlier, the same way, in the middle of its rail
+    function under(p, command) {
+      for (var y = origin[1] + yb; ; y--) {
+        if (taken[p[0] + ',' + y + ',' + p[2]]) continue;
+        put([p[0], y, p[2]], cmdState('repeat', 'up'), cmdData(command(y), true));
+        return [p[0], y, p[2]];
+      }
+    }
+    if (La) {
+      info.summon = under(La.start, function (y) { info.dy = La.place[1] - (y + 0.5); return summonCart(info.dy); });
+      if (La.boat) info.boatSummon = under(La.boatRail, function (y) {
+        return 'execute if score ' + t + ' ' + (SUMMON_T - 20) + '.. unless entity @e[type=oak_boat,tag=' + btag + '] run summon oak_boat ~ ~' +
+          plain(La.boat[1] - (y + 0.5)) + ' ~ {Tags:["' + btag + '"]}';
+      });
+    }
     info.lines = lines; info.secs = secs;
     return { blocks: list, tes: tes, info: info, startRail: at(0, ys[0]) };
   }
@@ -1358,23 +1381,26 @@ function makeTester(E, LW) {
     return { passed: info.lo <= info.hi ? ha && hc : ha || hc,
              floatcart: boxHit(y, y + HEIGHT, top) && !boxHit(y, y + HEIGHT, top + Number(F1E5)) };
   }
-  function description(code, axis, lo, hi, check) {
+  function description(code, axis, lo, hi, check, info) {
     var what = { y: 'its y fraction', x: 'its x fraction after the parking rail is removed', z: 'its z fraction after the parking rail is removed' }[axis];
+    var put = !info || info.how === 'hand' ? 'put a minecart on the start rail'
+      : info.boat ? 'put a boat on the launcher\'s boat rail and a minecart on its top slope; the cart takes the boat aboard, is launched into the stopper and falls onto the start rail'
+      : 'put a minecart on the launch slope; it is launched into the stopper and falls onto the start rail';
     return 'Track found by the minecart alignment finder (created by 07km), with an automatic test. ' +
-      'Paste it in a creative world with commands allowed: command blocks put a minecart on the start rail, ' +
+      'Paste it in a creative world with commands allowed: command blocks ' + put + ', ' +
       'and about ' + Math.floor((check + 14) / 20) + ' seconds after the paste the chat says whether ' + what + ' is ' +
       rangeText(lo, hi) + ', with the exact position. The button behind the start runs it again. Layout code: ' + code + '. Minecraft Java 26.2.';
   }
   // The whole file: uncompressed NBT bytes, plus what the test should report when the start
   // rail is where it was built (the run, the drop for x / z, and the verdict).
-  function file(code, startRail, facing, axis, lo, hi, uid, nowMs) {
+  function file(code, startRail, facing, axis, lo, hi, uid, nowMs, opt) {
     var start = E.parse(code).start;
     var origin = start === 'S' ? startRail : [startRail[0], startRail[1] + 1, startRail[2]];
-    var r = E.run(code, origin, facing, false, 20000);
+    var r = E.run(code, origin, facing, false, 20000, opt);
     if (!r.ok) throw new Error('the cart does not park on this track');
-    var tt = build(code, startRail, facing, axis, lo, hi, uid, r.ticks);
-    var enc = LW.encode(tt.blocks, 'Cart track test ' + code, '07km', description(code, axis, lo, hi, tt.info.check), nowMs, tt.tes);
-    var y = axis === 'y' ? r.y : E.dropY(code, origin, facing, r);
+    var tt = build(code, startRail, facing, axis, lo, hi, uid, r.ticks, opt);
+    var enc = LW.encode(tt.blocks, 'Cart track test ' + code, '07km', description(code, axis, lo, hi, tt.info.check, tt.info), nowMs, tt.tes);
+    var y = axis === 'y' ? r.y : E.dropY(code, origin, facing, r, opt);
     return { bytes: enc.bytes, offset: enc.offset, size: enc.size, info: tt.info, startRail: tt.startRail,
              end: [r.x, y, r.z], expect: verdict(tt.info, r.x, y, r.z) };
   }
@@ -1382,7 +1408,7 @@ function makeTester(E, LW) {
 }
 
 /* ============================================================================================
-   finder_3d.js
+   3D view
 
    The 3D view of one track: scene3d.js (shared with the two 3D pages) in a box that
    moves into whichever result is open.
@@ -1544,7 +1570,7 @@ function makeViewer3D() {
 }
 
 /* ============================================================================================
-   finder_app.js
+   App
 
    The page itself: reading the settings, running the search in workers, the results
    table, the details, the downloads and the checks. Runs last, on load.
@@ -1630,7 +1656,8 @@ function makeViewer3D() {
   var STOP_SHORT = { block: 'block', honey: 'honey block', bud_side: 'bud, side on', small_side: 'small bud, side on',
                      small_tip: 'small bud tip', medium_tip: 'medium bud tip', large_tip: 'large bud tip', cluster_tip: 'cluster tip' };
   function startSettings() {
-    return { boat: choice('cart') === 'boat', how: $('how').value, stopper: $('stopper').value, approach: $('approach').value };
+    var all = choice('stopAll') === 'all';
+    return { boat: choice('cart') === 'boat', how: $('how').value, stopper: all ? 'all' : $('stopper').value, approach: all ? 'all' : $('approach').value };
   }
   // The starts a search tries, {how, boat, stopper, approach, rank}: rank orders them in the list
   function startVariants(ss) {
@@ -1670,6 +1697,7 @@ function makeViewer3D() {
     if (sel.options[sel.selectedIndex].disabled) sel.value = ss.boat ? 'fly' : 'hand';
     ss = startSettings();
     $('stopBox').hidden = ss.how === 'hand';
+    $('stopPick').hidden = ss.stopper === 'all';
     var vs = startVariants(ss), one = vs.length === 1 && vs[0].how !== 'hand' ? vs[0] : null;
     var how = ss.how === 'hand' ? 'Placed by hand on the start rail, as in the maker schematics.'
       : ss.how === 'both' ? 'Placed by hand on the start rail, or launched: the cart runs off a powered slope, stops dead in mid-air against the stopper and falls onto the start rail. Nothing to break either way.'
@@ -1680,7 +1708,7 @@ function makeViewer3D() {
       : vs.length > 1 ? ' That makes ' + vs.length + ' starts, each searched in full.' : '');
     sizeHint();
   }
-  each('input[name="cart"]', function (el) { el.addEventListener('change', syncCart); });
+  each('input[name="cart"], input[name="stopAll"]', function (el) { el.addEventListener('change', syncCart); });
   ['how', 'stopper', 'approach'].forEach(function (id) { $(id).addEventListener('change', syncCart); });
 
   /* ---------- reading the settings ---------- */
@@ -2140,9 +2168,9 @@ function makeViewer3D() {
     h += '<div class="dv-actions">' +
       '<button type="button" class="btn sm" data-act="copy" data-id="' + id + '">Copy layout code</button>' +
       '<button type="button" class="btn sm" data-act="lite" data-id="' + id + '">Download .litematic</button>' +
-      (r.ok && sv.how === 'hand' ? '<button type="button" class="btn sm" data-act="tester" data-id="' + id + '">Download with tester</button>' : '') +
+      (r.ok && sv.how !== 'loader' ? '<button type="button" class="btn sm" data-act="tester" data-id="' + id + '">Download with tester</button>' : '') +
       '<button type="button" class="btn sm" data-act="verify" data-id="' + id + '">Check at ' + (st.axis === 'y' ? 60 : 15) + ' positions</button>' +
-      (sv.how !== 'hand' ? '<span class="note">The download with an automatic test only covers carts placed by hand so far.</span>' : '') +
+      (sv.how === 'loader' ? '<span class="note">No automatic test for a loading run: the glass has to be broken by hand. Launched, the same start has one.</span>' : '') +
       '<span class="note" data-for="' + id + '"></span></div>';
     h += '@@VERIFY@@';
     h += buildTableHTML(b, st);
@@ -2197,7 +2225,7 @@ function makeViewer3D() {
       '</tbody></table></div><p class="bnote">' + esc(note) + '</p>' + extra;
   }
 
-  /* ---------- 3D view: one canvas (finder_3d.js), moved into the result that is open ----------
+  /* ---------- 3D view: one canvas (makeViewer3D), moved into the result that is open ----------
      A result that had it keeps a still picture; click that picture to turn the track again. */
   var glCache = {}, snaps = {}, seen = {}, V3 = null, v3Made = false, v3Key = null, v3Box = null;
   function viewer3() {
@@ -2316,7 +2344,7 @@ function makeViewer3D() {
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     note(res.id, 'Saved. In the schematic, the start rail is ' + xyz(rel) + ' from its corner (' + enc.size.join(' × ') + ' blocks).');
   }
-  // The track plus command blocks that test it by themselves after a paste (finder_tester.js)
+  // The track plus command blocks that test it by themselves after a paste (makeTester)
   function uid() {
     var s = '';
     for (var i = 0; i < 6; i++) s += '0123456789abcdef'.charAt(Math.floor(Math.random() * 16));
@@ -2324,17 +2352,18 @@ function makeViewer3D() {
   }
   function downloadTester(res, st) {
     var code = res.code, f;
-    try { f = TS.file(code, st.pos, st.facing, st.axis, st.lo, st.hi, uid()); }
+    try { f = TS.file(code, st.pos, st.facing, st.axis, st.lo, st.hi, uid(), undefined, optsFor(res.v)); }
     catch (err) { note(res.id, 'No tester: ' + err.message + '.'); return; }
     var rel = [f.startRail[0] - f.offset[0], f.startRail[1] - f.offset[1], f.startRail[2] - f.offset[2]];
     var url = URL.createObjectURL(new Blob([LW.gzipStored(f.bytes)], { type: 'application/octet-stream' }));
     var a = document.createElement('a');
-    a.href = url; a.download = 'track-test-' + code.replace(/\s+/g, '-') + '.litematic';
+    a.href = url; a.download = 'track-test-' + code.replace(/\s+/g, '-') + (res.v.how === 'hand' ? '' : '-' + res.v.how + '-' + res.v.stopper + '-' + res.v.approach) + '.litematic';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
     var v = f.end[st.axis === 'x' ? 0 : st.axis === 'z' ? 2 : 1];
     note(res.id, 'Saved with an automatic test. Paste it in an open area of a creative world with commands allowed (on a server: op, and ' +
-      'enable-command-block=true). About ' + f.info.secs + ' seconds later the chat shows the result' +
+      'enable-command-block=true). ' + (f.info.boat ? 'Command blocks summon the boat on its rail, then the cart on the launcher. '
+        : f.info.how === 'fly' ? 'Command blocks summon the cart on the launcher. ' : '') + 'About ' + f.info.secs + ' seconds later the chat shows the result' +
       (st.axis === 'y' ? '' : ', after the test removes the parking rail') + '. Here it should say ' + (f.expect.passed ? 'PASS' : 'FAIL') +
       (st.axis === 'y' ? ' and ' + (f.expect.floatcart ? '"It is a floatcart"' : '"It is not a floatcart"') : '') +
       ' (' + st.axis + ' fraction ' + fmtFrac(v) + '). For exactly these numbers, place it with the start rail at ' + xyz(f.startRail) +
