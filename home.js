@@ -40,9 +40,12 @@
     return { code: c, facing: 'south', origin: o, opt: null, r: E.run(c, o, 'south', true, 3000), b: E.build(c, o, 'south') };
   }
 
-  var cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, spin = 0, shown = -1;
-  function show(tr) {
-    cur = tr;
+  var cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, shown = -1;
+  var glide = null, GLIDE = 1.6, fading = false, FADE = 450;   // ms the view takes to fade out, and back in
+  S.canvas.style.transition = 'opacity ' + FADE + 'ms ease';                          // the camera easing from one framing to the next (seconds)
+  function ease(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
+  function show(tr, first) {
+    cur = tr; tr.first = !!first;
     var off = [Infinity, Infinity, Infinity];
     tr.b.blocks.forEach(function (q) { off[0] = Math.min(off[0], q.x); off[1] = Math.min(off[1], q.y); off[2] = Math.min(off[2], q.z); });
     function rel(p, dy) { return [p[0] - off[0], p[1] - off[1] + (dy || 0), p[2] - off[2]]; }
@@ -66,7 +69,10 @@
       var x = cx + rad * Math.cos(a * Math.PI / 8), z = cz + rad * Math.sin(a * Math.PI / 8);
       S.fitPoint([x, lo[1], z]); S.fitPoint([x, hi[1], z]);
     }
-    S.resize(); S.frame(true); S.turn(spin);
+    S.resize();
+    var to = S.fitted();
+    if (!cur.first && to) glide = { from: S.camera(), to: to, t: 0 };   // glide there, still turning
+    else { S.frame(true); glide = null; }
     t = 0; hold = 0; shown = -1;
     place();
     caption(false);
@@ -102,15 +108,30 @@
   function frame(ts) {
     var dt = last ? Math.min(0.1, (ts - last) / 1000) : 0;
     last = ts;
-    if (SPIN) { spin += dt * SPIN; S.turn(dt * SPIN); }
+    if (SPIN) S.turn(dt * SPIN);
+    if (glide) {
+      glide.t = Math.min(1, glide.t + dt / GLIDE);
+      var k = ease(glide.t), a = glide.from, b = glide.to;
+      S.camera({ target: [0, 1, 2].map(function (i) { return a.target[i] + (b.target[i] - a.target[i]) * k; }),
+                 r: a.r + (b.r - a.r) * k, el: a.el + (b.el - a.el) * k });
+      if (glide.t >= 1) glide = null;
+    }
     var n = run.length - 1;
     if (t < n) {
       t = Math.min(n, t + dt * 20 * SPEED);
       place();
       if (t >= n) caption(true);
-    } else if ((hold += dt) >= HOLD) show(randomTrack());
+    } else if ((hold += dt) >= HOLD && !fading) {            // fade out, swap in the next track, fade back in
+      fading = true;
+      S.canvas.style.opacity = '0';
+      setTimeout(function () {
+        show(randomTrack());
+        S.canvas.style.opacity = '1';
+        fading = false;
+      }, FADE);
+    }
     requestAnimationFrame(frame);
   }
-  show(randomTrack());
+  show(randomTrack(), true);
   requestAnimationFrame(frame);
 })();

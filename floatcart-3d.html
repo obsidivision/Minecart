@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Vertical floatcart challenge in 3D · Minecraft Java 26.2</title>
-<meta name="description" content="FarCoolHat's vertical floatcart challenge in 3D (Minecraft Java 26.2): his attempt and 07km's lever solution, tick by tick.">
+<meta name="description" content="FarCoolHat's vertical floatcart challenge in 3D (Minecraft Java 26.2): his attempt and 07km's lever solution.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
@@ -21,7 +21,7 @@
 <div class="wrap full">
 <header class="site compact">
   <h1>The vertical floatcart challenge</h1>
-  <p class="sub">FarCoolHat's build and the cart that solves it, tick by tick.</p>
+  <p class="sub">FarCoolHat's build and the solution.</p>
 </header>
 </div>
 <div class="viewer">
@@ -75,9 +75,8 @@
     <section class="insp">
       <details class="more">
         <summary>About this view</summary>
-        <p>Everything here comes from the challenge's schematic (x is east, z is south). The floatcart tester is on the left, the launch station on the right.</p>
-        <p>The cart runs on Java 26.2's classic minecart physics, and each tick shows which rules it used. The as-built run ends on the same number as FarCoolHat's stored cart. The box around the cart is its hitbox (0.98 &times; 0.7).</p>
-        <p>Gold rails are powered. In the lever solution, the two lower ones turn off whenever the lever is off.</p>
+        <p>Built from the challenge schematic. Tester on the left, launch station on the right. x is east, z is south.</p>
+        <p>The as-built run lands on the same number as FarCoolHat's stored cart. Gold rails are powered.</p>
       </details>
     </section>
   </aside>
@@ -142,7 +141,7 @@
     });
     S.cart('ghost', { alpha: 0.22, line: 0.55 }).place(D.carts[0]).fit().pick(function () {
       return '<b>FarCoolHat’s stored cart</b><span class="k">y = ' + D.carts[0][1] + '</span><div class="note">y fraction ' +
-        String(frac(D.carts[0][1])) + ', the sign’s “close, but not good enough”. The as-built run ends exactly here.</div>';
+        String(frac(D.carts[0][1])) + ', the sign’s “close, but not good enough”. The as-built run ends here.</div>';
     });
     S.stand(D.stand, function () {
       return '<b>Armor stand</b><span class="k">(' + D.stand.map(function (v) { return +v.toFixed(3); }).join(', ') +

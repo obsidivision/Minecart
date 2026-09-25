@@ -1693,13 +1693,12 @@ function makeViewer3D() {
     $('stopBox').hidden = ss.how === 'hand';
     $('stopPick').hidden = ss.stopper === 'all';
     var vs = startVariants(ss), one = vs.length === 1 && vs[0].how !== 'hand' ? vs[0] : null;
-    var how = ss.how === 'hand' ? 'You place the cart on the start rail, like the maker schematics.'
-      : ss.how === 'both' ? 'Searches both: placed by hand, and launched off a slope into a stopper so it drops onto the start rail.'
-      : ss.how === 'fly' ? (ss.boat ? 'A cart with a boat can\'t be placed by hand, so it gets a launcher. It picks up the boat on the way down, ' : 'Comes with a launcher. The cart ') +
-        'flies off a powered slope, hits the stopper and drops onto the start rail. Nothing to break.'
-      : 'Comes with a loading run. The cart picks up the boat and stops against the stopper, then you break the glass under it to drop it onto the start rail.';
-    $('cartHint').textContent = how + (one ? ' It starts at ' + E.boatFrac(one.stopper, $('facing').value, one.approach).toFixed(10) + ' on the start rail.'
-      : vs.length > 1 ? ' ' + vs.length + ' starts to search.' : '');
+    var how = ss.how === 'hand' ? 'Place the cart on the start rail.'
+      : ss.how === 'both' ? 'Placed by hand, or launched into a stopper.'
+      : ss.how === 'fly' ? (ss.boat ? 'You can\'t place a cart with a boat in it, so it comes with a launcher. Nothing to break.' : 'Comes with a launcher. Nothing to break.')
+      : 'Comes with a loading run. Break one glass block to drop the cart.';
+    $('cartHint').textContent = how + (one ? ' Starts at ' + E.boatFrac(one.stopper, $('facing').value, one.approach).toFixed(10) + '.'
+      : vs.length > 1 ? ' ' + vs.length + ' starts.' : '');
     sizeHint();
   }
   each('input[name="cart"], input[name="stopAll"]', function (el) { el.addEventListener('change', syncCart); });
@@ -1728,9 +1727,8 @@ function makeViewer3D() {
     });
     if (sel.options[sel.selectedIndex].disabled) sel.value = axis === 'x' ? 'east' : 'south';
     $('axisHint').textContent = axis === 'y'
-      ? 'The cart\'s height on the parking slope. A floatcart needs 0.3000000120 to 0.3000100119.'
-      : 'Break the parking rail after the cart stops; it drops and keeps its ' + axis + '. The track has to run ' +
-        (axis === 'x' ? 'east or west' : 'north or south') + '.';
+      ? 'Height on the parking slope. Floatcart: 0.3000000120 to 0.3000100119.'
+      : 'Break the parking rail after it stops. Track must run ' + (axis === 'x' ? 'east or west' : 'north or south') + '.';
     readPos();
     readTarget();
     syncCart();
@@ -1753,8 +1751,7 @@ function makeViewer3D() {
       if (!isFinite(v)) return bad('target', 'Enter a number, like 0.3 or 64.3000050119.');
       if (!(isFinite(tol) && tol >= 0 && tol < 0.5)) return bad('tol', 'The ± value must be between 0 and 0.5.');
       var c = frac(v);
-      hint.textContent = (v !== c ? 'Only the part after the point counts: ' + c.toFixed(10) + '. ' : 'Only the part after the point counts. ') +
-        'Anything within ±' + tol + ' is a match.';
+      hint.textContent = (v !== c ? 'Using ' + c.toFixed(10) + '. ' : '') + 'Within ±' + tol + ' counts.';
       return { mode: 'value', target: c, lo: frac(c - tol), hi: frac(c + tol), w: tol };
     }
     var a = num($('lo').value), b = num($('hi').value);
@@ -1763,9 +1760,8 @@ function makeViewer3D() {
     if (Math.abs(b - a) >= 1) return bad('hi', 'The range has to be under one block.');
     var lo = frac(a), hi = frac(b), w = lo <= hi ? (hi - lo) / 2 : (hi + 1 - lo) / 2;
     hint.textContent = (lo <= hi
-      ? 'Anything from ' + lo.toFixed(10) + ' to ' + hi.toFixed(10) + ' is a match. '
-      : 'This wraps past 1: ' + lo.toFixed(10) + ' to 1, and 0 to ' + hi.toFixed(10) + '. ') +
-      'Closest first sorts by distance from the middle.';
+      ? 'Matches from ' + lo.toFixed(10) + ' to ' + hi.toFixed(10) + '.'
+      : 'Matches from ' + lo.toFixed(10) + ' to 1, and 0 to ' + hi.toFixed(10) + '.');
     return { mode: 'range', target: frac(lo + w), lo: lo, hi: hi, w: w };
   }
   function readPos() {
@@ -1773,7 +1769,7 @@ function makeViewer3D() {
     var facing = $('facing').value, ok = x !== null && y !== null && z !== null;
     $('posHint').classList.toggle('err', !ok);
     $('posHint').textContent = ok
-      ? 'Where the start rail goes. Results are exact for this spot; moving the track changes the last few digits.'
+      ? 'The start rail. Moving it changes the last few digits.'
       : 'X and Z must be whole numbers inside the world border, and Y a whole number from -64 to 318.';
     if (!ok) { $('posBox').open = true; return null; }
     $('posSum').textContent = x + ' ' + y + ' ' + z + ', track running ' + facing;
