@@ -93,7 +93,7 @@ function makeScene3D(host, opt) {
   var FS = 'precision mediump float;uniform vec4 uColor;uniform vec4 uTile;uniform sampler2D uTex;varying vec3 vN;varying vec2 vUV;varying float vD;' + FOG +
            'void main(){vec3 n=normalize(vN);float l=0.62*n.x*n.x+0.8*n.z*n.z+(n.y>0.0?1.0:0.5)*n.y*n.y;' +
            'vec4 t=uTile.w>0.5?texture2D(uTex,uTile.xy+clamp(vec2(vUV.x,1.0-vUV.y),0.0,0.999)*uTile.z):vec4(1.0);' +
-           'gl_FragColor=vec4(fog(uColor.rgb*t.rgb*l,vD),uColor.a*t.a);}';
+           'if(uTile.w>1.5&&t.a<0.5)discard;gl_FragColor=vec4(fog(uColor.rgb*t.rgb*l,vD),uColor.a*t.a);}';
   var LVS = 'attribute vec3 aPos;uniform mat4 uPV;uniform mat4 uM;varying float vD;void main(){gl_Position=uPV*uM*vec4(aPos,1.0);vD=gl_Position.w;}';
   var LFS = 'precision mediump float;uniform vec4 uColor;varying float vD;' + FOG + 'void main(){gl_FragColor=vec4(fog(uColor.rgb,vD),uColor.a*(1.0-clamp((vD-uFog.x)/(uFog.y-uFog.x),0.0,1.0)*uFog.z*0.6));}';
   function shader(type, src) {
@@ -145,6 +145,50 @@ function makeScene3D(host, opt) {
   })();
   var NO_TILE = new Float32Array([0, 0, 0, 0]);
   function tileOf(t) { return t == null ? NO_TILE : new Float32Array([(t % 4) * 0.25, Math.floor(t / 4) * 0.25, 0.25, 1]); }
+
+  /* ---------- the game's own textures, when the visitor has loaded them (site.js: window.__mcTextures) ----------
+     An atlas of 16 x 16 tiles, each the first frame of a texture; objects name theirs (o.mc) and are drawn
+     untinted with it, rails as flat cut-out quads like the game's. Without them nothing changes. */
+  var MC = { ready: false, tex: null, tiles: {} };
+  function loadMc() {
+    var data = window.__mcTextures, names = data && data.tex ? Object.keys(data.tex) : [];
+    if (!names.length) { MC.ready = false; request(); return; }
+    var imgs = {}, left = names.length;
+    names.forEach(function (n) {
+      var im = new Image();
+      im.onload = im.onerror = function () { imgs[n] = im.naturalWidth ? im : null; if (--left === 0) build(); };
+      im.src = data.tex[n];
+    });
+    function build() {
+      var size = 16;
+      names.forEach(function (n) { if (imgs[n]) size = Math.max(size, Math.min(64, imgs[n].naturalWidth)); });
+      var cv = document.createElement('canvas'); cv.width = cv.height = size * 16;
+      var g = cv.getContext('2d'); g.imageSmoothingEnabled = false;
+      MC.tiles = {};
+      names.forEach(function (n, i) {
+        var im = imgs[n]; if (!im) return;
+        var w = im.naturalWidth;                                  // animated textures are strips: the first frame
+        g.drawImage(im, 0, 0, w, w, (i % 16) * size, Math.floor(i / 16) * size, size, size);
+        MC.tiles[n] = new Float32Array([(i % 16) / 16, Math.floor(i / 16) / 16, 1 / 16, 1]);
+      });
+      if (!MC.tex) MC.tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, MC.tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      MC.ready = true;
+      request();
+    }
+  }
+  window.addEventListener('mc-textures', loadMc);
+  var WHITE = new Float32Array([1, 1, 1, 1]);
+  // the game texture an object is drawn with now, or null (a powered rail's changes as it is switched)
+  function mcName(o) {
+    if (!MC.ready || !o.mc) return null;
+    var n = o.mc;
+    if (n === 'powered_rail' && o.rec && (o.rec.live === undefined ? o.rec.pr.powered === 'true' : o.rec.live)) n = 'powered_rail_on';
+    return MC.tiles[n] ? n : null;
+  }
   function vbo(arr) { var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); return b; }
   function lineBuf(arr) { return { b: vbo(new Float32Array(arr)), n: arr.length / 3 }; }
 
@@ -208,7 +252,7 @@ function makeScene3D(host, opt) {
     o = o || {};
     var ob = { m: m, nm: normalMat(m), col: typeof col === 'string' ? null : col, key: typeof col === 'string' ? col : null,
                a: o.a == null ? 1 : o.a, edge: o.edge === undefined ? 'dark' : o.edge, lines: o.lines || null, bias: o.bias || 0,
-               aabb: aabbOf(m), tag: o.tag || null, tile: tileOf(o.tex) };
+               aabb: aabbOf(m), tag: o.tag || null, tile: tileOf(o.tex), mc: o.mc || null, mcTint: o.mcTint || null, mcOnly: !!o.mcOnly, rec: o.rec || null };
     ob.trans = (ob.col ? ob.col[3] : ob.a) < 1;
     objs.push(ob); return ob;
   }
@@ -249,47 +293,47 @@ function makeScene3D(host, opt) {
     var name = String(arr ? b[3] : b.name).replace('minecraft:', ''), pr = (arr ? b[4] : b.props) || {}, parts = [];
     function P(mn, sz, col, o) { var ob = add(boxM([x + mn[0], y + mn[1], z + mn[2]], sz), col, o); parts.push(ob); return ob; }
     var rec = { pos: [x, y, z], key: (x + off[0]) + ',' + (y + off[1]) + ',' + (z + off[2]), name: name, pr: pr, parts: parts };
-    if (/stained_glass$|^glass$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.glass, 0.5), { edge: 'glass', tex: TILE.glass });
-    else if (/concrete$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.concrete), { tex: TILE.concrete });
+    if (/stained_glass$|^glass$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.glass, 0.5), { edge: 'glass', tex: TILE.glass, mc: 'white_stained_glass' });
+    else if (/concrete$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.concrete), { tex: TILE.concrete, mc: 'white_concrete' });
     else if (BUDS[name]) {
       var bd = budBox(name, pr.facing || 'up');
-      P([bd[0], bd[1], bd[2]], [bd[3] - bd[0], bd[4] - bd[1], bd[5] - bd[2]], hex(C.bud), { tex: TILE.amethyst });
+      P([bd[0], bd[1], bd[2]], [bd[3] - bd[0], bd[4] - bd[1], bd[5] - bd[2]], hex(C.bud), { tex: TILE.amethyst, mc: 'amethyst_block' });
     } else switch (name) {
       case 'honey_block':
-        P([0, 0, 0], [1, 1, 1], hex(C.honey, 0.6), { edge: hex('#b36d0c', 0.9), tex: TILE.honey });
+        P([0, 0, 0], [1, 1, 1], hex(C.honey, 0.6), { edge: hex('#b36d0c', 0.9), tex: TILE.honey, mc: 'honey_block_side' });
         P([0.0625, 0.0625, 0.0625], [0.875, 0.875, 0.875], hex(C.honeyCore, 0.45), { edge: null, bias: 0.05 });
         break;
       case 'waxed_oxidized_copper_grate':
-        P([0, 0, 0], [1, 1, 1], hex(C.grate, 0.38), { edge: hex('#2f6e5c', 0.95), lines: 'grate' });
-        if (pr.waterlogged !== 'false') P([0.03, 0.03, 0.03], [0.94, 0.86, 0.94], hex(C.water, 0.33), { edge: null, bias: 0.05 });
+        P([0, 0, 0], [1, 1, 1], hex(C.grate, 0.38), { edge: hex('#2f6e5c', 0.95), lines: 'grate', mc: 'oxidized_copper_grate' });
+        if (pr.waterlogged !== 'false') P([0.03, 0.03, 0.03], [0.94, 0.86, 0.94], hex(C.water, 0.33), { edge: null, bias: 0.05, mc: 'water_still', mcTint: hex('#3f76e4', 0.55) });
         break;
-      case 'note_block': P([0, 0, 0], [1, 1, 1], hex(C.note), { tex: TILE.note }); break;
+      case 'note_block': P([0, 0, 0], [1, 1, 1], hex(C.note), { tex: TILE.note, mc: 'note_block' }); break;
       case 'observer':                                     // as built in the challenge: face north
-        P([0, 0, 0], [1, 1, 1], hex(C.observer), { tex: TILE.stone });
+        P([0, 0, 0], [1, 1, 1], hex(C.observer), { tex: TILE.stone, mc: 'observer_side' });
         P([0.12, 0.12, -0.012], [0.76, 0.76, 0.02], hex(C.observerFace), { edge: null });
         P([0.4, 0.4, 0.992], [0.2, 0.2, 0.02], hex(C.red), { edge: null });
         break;
       case 'piston':                                       // facing west
-        P([0.25, 0, 0], [0.75, 1, 1], hex(C.piston), { tex: TILE.stone });
-        P([0, 0, 0], [0.25, 1, 1], hex(C.pistonFace), { tex: TILE.planks });
+        P([0.25, 0, 0], [0.75, 1, 1], hex(C.piston), { tex: TILE.stone, mc: 'piston_side' });
+        P([0, 0, 0], [0.25, 1, 1], hex(C.pistonFace), { tex: TILE.planks, mc: 'piston_top' });
         break;
       case 'polished_deepslate_wall':
-        P([0.25, 0, 0.25], [0.5, 1, 0.5], hex(C.wall));
-        if (pr.south === 'low') P([0.3125, 0, 0.5], [0.375, 0.875, 0.5], hex(C.wall));
+        P([0.25, 0, 0.25], [0.5, 1, 0.5], hex(C.wall), { mc: 'polished_deepslate' });
+        if (pr.south === 'low') P([0.3125, 0, 0.5], [0.375, 0.875, 0.5], hex(C.wall), { mc: 'polished_deepslate' });
         break;
       case 'scaffolding':
-        P([0, 0.875, 0], [1, 0.125, 1], hex(C.scaffTop));
-        [[0, 0], [0.875, 0], [0, 0.875], [0.875, 0.875]].forEach(function (c) { P([c[0], 0, c[1]], [0.125, 0.875, 0.125], hex(C.scaff)); });
+        P([0, 0.875, 0], [1, 0.125, 1], hex(C.scaffTop), { mc: 'scaffolding_top' });
+        [[0, 0], [0.875, 0], [0, 0.875], [0.875, 0.875]].forEach(function (c) { P([c[0], 0, c[1]], [0.125, 0.875, 0.125], hex(C.scaff), { mc: 'scaffolding_side' }); });
         if (pr.bottom === 'true') {
           P([0.125, 0, 0], [0.75, 0.125, 0.125], hex(C.scaff)); P([0.125, 0, 0.875], [0.75, 0.125, 0.125], hex(C.scaff));
           P([0, 0, 0.125], [0.125, 0.125, 0.75], hex(C.scaff)); P([0.875, 0, 0.125], [0.125, 0.125, 0.75], hex(C.scaff));
         }
         break;
-      case 'cherry_wall_sign': P([0.875, 0.28125, 0], [0.125, 0.5, 1], hex(C.sign)); break;   // facing west
+      case 'cherry_wall_sign': P([0.875, 0.28125, 0], [0.125, 0.5, 1], hex(C.sign), { mc: 'cherry_planks' }); break;   // facing west
       case 'lever':
         var d = leverDir(pr.facing);
         P([d[0] > 0 ? 0 : d[0] < 0 ? 0.8125 : 0.3125, 0.25, d[1] > 0 ? 0 : d[1] < 0 ? 0.8125 : 0.3125],
-          [d[0] ? 0.1875 : 0.375, 0.5, d[1] ? 0.1875 : 0.375], hex(C.lever));
+          [d[0] ? 0.1875 : 0.375, 0.5, d[1] ? 0.1875 : 0.375], hex(C.lever), { mc: 'cobblestone' });
         rec.handle = add(leverM(x, y, z, pr.facing, pr.powered === 'true'), hex(C.stick), { edge: null });
         parts.push(rec.handle);
         break;
@@ -311,7 +355,9 @@ function makeScene3D(host, opt) {
     var base = T(x + 0.5, y + (asc ? 0.5 : 0), z + 0.5);
     if (/east|west/.test(shape)) base = chain(base, RY(Math.PI / 2));
     if (asc) base = chain(base, RX(/south|east/.test(shape) ? -Math.PI / 4 : Math.PI / 4));
-    function B(mn, sz, col, t) { var ob = add(chain(base, boxM(mn, sz)), col, { edge: null, tex: t }); rec.parts.push(ob); return ob; }
+    function B(mn, sz, col, t) { var ob = add(chain(base, boxM(mn, sz)), col, { edge: null, tex: t }); ob.mcHide = true; rec.parts.push(ob); return ob; }
+    var q = add(chain(base, boxM([-0.5, 0.004, -L / 2], [1, 0.01, L])), hex('#ffffff'), { edge: null, mc: kind, mcOnly: true, rec: rec });
+    rec.parts.push(q);
     var n = asc ? 6 : 4;
     for (var i = 0; i < n; i++) B([-0.42, 0, -L / 2 + (i + 0.5) * L / n - 0.065], [0.84, 0.03, 0.13], hex(C.tie), TILE.planks);
     var metal = kind === 'powered_rail' ? (powered ? C.gold : C.goldOff) : C.iron;
@@ -696,11 +742,23 @@ function makeScene3D(host, opt) {
     gl.enableVertexAttribArray(AM.aNrm); gl.vertexAttribPointer(AM.aNrm, 3, gl.FLOAT, false, 24, 12);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIB);
     gl.uniformMatrix4fv(AM.uPV, false, PV);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(AM.uTex, 0);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); boundTex = tex; gl.uniform1i(AM.uTex, 0);
     gl.uniform3fv(AM.uFog, FOGV); gl.uniform3fv(AM.uFogC, TH.scene.slice(0, 3));
   }
+  var boundTex = null;
+  function bindTex(t) { if (boundTex !== t) { gl.bindTexture(gl.TEXTURE_2D, t); boundTex = t; } }
   function mesh(o) {
-    gl.uniformMatrix4fv(AM.uM, false, o.m); gl.uniformMatrix3fv(AM.uN, false, o.nm); gl.uniform4fv(AM.uColor, colOf(o)); gl.uniform4fv(AM.uTile, o.tile);
+    gl.uniformMatrix4fv(AM.uM, false, o.m); gl.uniformMatrix3fv(AM.uN, false, o.nm);
+    var n = mcName(o);
+    if (n) {                                                     // the game's texture, untinted (water keeps its tint); rails cut out
+      var tl = MC.tiles[n];
+      bindTex(MC.tex);
+      gl.uniform4fv(AM.uColor, o.mcTint || WHITE);
+      gl.uniform4f(AM.uTile, tl[0], tl[1], tl[2], o.mcOnly ? 2 : 1);
+    } else {
+      bindTex(tex);
+      gl.uniform4fv(AM.uColor, colOf(o)); gl.uniform4fv(AM.uTile, o.tile);
+    }
     gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
   }
   var curLB = null;
@@ -729,12 +787,13 @@ function makeScene3D(host, opt) {
     var opaque = [], trans = [];
     objs.forEach(function (o) {
       if (o.hidden || (o.tag === 'dot' && !show.dots)) return;
+      if (o.mcOnly ? !mcName(o) : o.mcHide && MC.ready && MC.tiles.rail) return;
       (o.trans ? trans : opaque).push(o);
     });
     useMesh(); opaque.forEach(mesh);
     useLines();
     if (LINES.grid) lines(LINES.grid, ID, TH.grid);
-    opaque.forEach(function (o) { var e = edgeOf(o); if (e) lines(LINES.edges, o.m, e); });
+    opaque.forEach(function (o) { var e = !mcName(o) && edgeOf(o); if (e) lines(LINES.edges, o.m, e); });   // a game texture draws its own edges
     var names = Object.keys(paths);
     if (show.paths) names.forEach(function (n) { var P = paths[n]; lines(P.buf, ID, withA(TH[P.key], P.a), gl.LINE_STRIP); });
     carts.forEach(function (c) { if (c.visible) lines(LINES.edges, c.hit, withA(TH[c.key], c.line)); });
@@ -749,7 +808,7 @@ function makeScene3D(host, opt) {
     useMesh(); trans.forEach(mesh);
     useLines();
     trans.forEach(function (o) {
-      var e = edgeOf(o);
+      var e = !mcName(o) && edgeOf(o);
       if (e) lines(LINES.edges, o.m, e);
       if (o.lines && e) lines(LINES[o.lines], o.m, e);
     });
@@ -790,6 +849,7 @@ function makeScene3D(host, opt) {
   }
 
   /* ---------- api ---------- */
+  loadMc();
   var api = {
     canvas: canvas,
     ok: true,
