@@ -342,6 +342,10 @@ details.more > summary:hover { color: var(--fg); }
 .results { margin-top: 28px; }
 .res-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .res-head h2 { font-size: 18px; }
+.res-tools { display: flex; align-items: center; gap: 14px; font-size: 13px; color: var(--fg-2); }
+.res-tools select { height: 30px; font-size: 13px; }
+.chk { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.chk input { accent-color: var(--brand); width: 15px; height: 15px; margin: 0; }
 #summary { margin-top: 6px; color: var(--fg-3); font-size: 13.5px; max-width: 80ch; }
 .progress { position: relative; height: 2px; margin: 14px 0 0; background: var(--line); border-radius: 2px; overflow: hidden; }
 .progress i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--fg); transition: width .25s; }
@@ -673,6 +677,8 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
 .hero-now:empty { display: none; }
 .hero-now .mono { color: var(--fg); font-weight: 600; }
 .hero-now .res b { color: var(--fg); }
+.hero-now .open { color: var(--brand); font-weight: 600; text-decoration: none; }
+.hero-now .open:hover { text-decoration: underline; }
 .plate {
   position: absolute; left: max(24px, calc((100vw - 1200px) / 2 + 24px)); bottom: 32px; z-index: 1; width: min(420px, calc(100% - 48px));
   padding: 22px 24px 20px; background: var(--card); border: 2px solid var(--fg); border-radius: 2px;

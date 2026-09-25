@@ -17,6 +17,16 @@ let failed = 0;
     console.log((ok ? 'PASS ' : 'FAIL ') + 'homepage ' + theme + ' ' + w + 'px: ' + codes.size + ' tracks in 16 s' + (errs.length ? ', errors: ' + errs.join('; ') : ''));
     await p.close();
   }
+  // the track on show opens in the finder, with its layout checked
+  const p = await b.newPage({ viewport: { width: 1300, height: 900 } });
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto(base + 'index.html'); await p.waitForTimeout(1500);
+  const code = await p.evaluate(() => document.querySelector('#now .mono').textContent);
+  await p.click('#now .open'); await p.waitForLoadState('load'); await p.waitForTimeout(1500);
+  const got = await p.evaluate(() => ({ url: location.pathname, code: document.getElementById('code').value, detail: !!document.querySelector('#checkOut .dv') }));
+  const ok = /floatcart-finder\.html$/.test(got.url) && got.code === code && got.detail && !errs.length;
+  if (!ok) failed++;
+  console.log((ok ? 'PASS ' : 'FAIL ') + 'homepage track opens in the finder  ' + code + ' -> ' + JSON.stringify(got) + (errs.length ? ' errors: ' + errs.join('; ') : ''));
   await b.close();
   console.log(failed ? failed + ' failed' : 'all passed');
   process.exit(failed ? 1 : 0);

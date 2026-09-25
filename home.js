@@ -95,13 +95,23 @@
     }
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // the finder, opened on this track: its layout checked, with its start and direction
+  function finderLink() {
+    var o = cur.opt, r = cur.r, q = { axis: 'y', mode: 'value', target: (r.y - Math.floor(r.y)).toFixed(10), tol: '0.000005',
+      px: 0, py: 64, pz: 0, facing: cur.facing, cart: o && o.boat ? 'boat' : 'empty', how: o ? o.how : 'hand', check: cur.code };
+    if (o) { q.stopAll = 'one'; q.stopper = o.stopper; q.approach = o.approach; }
+    return 'floatcart-finder.html#' + Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
+  }
+  host.style.cursor = 'pointer';
+  host.title = 'Open this track in the finder';
+  host.addEventListener('click', function () { if (cur) location.href = finderLink(); });
   function caption(parked) {
     if (!now) return;
     var o = cur.opt, r = cur.r, y = r.y - Math.floor(r.y);
     var how = !o ? 'placed by hand' : 'launched' + (o.boat ? ' with a boat' : '');
     now.innerHTML = '<span class="mono">' + esc(cur.code) + '</span><span class="how">' + how + ', running ' + cur.facing + '</span>' +
       (parked ? '<span class="res">parked at y <b class="mono">' + y.toFixed(10) + '</b>' + (E.isFloatcart(r.y) ? ' <span class="badge fc">floatcart</span>' : '') + '</span>'
-              : '<span class="res">running…</span>');
+              : '<span class="res">running…</span>') + '<a class="open" href="' + esc(finderLink()) + '">Open in finder &rarr;</a>';
   }
 
   var last = 0;

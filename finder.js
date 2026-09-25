@@ -334,16 +334,24 @@
       return;
     }
     stop(true);
-    var tasks = [], total = 0;                     // every part once per start (t.v: its index in st.starts)
-    jobsFor(st.rails, st.size).forEach(function (j) {
-      total += TOTALS[st.boat ? 'boat' : 'empty'][j.alphabet][j.depth] * st.starts.length;
-      E.makeTasks(j.alphabet, j.starts, j.depth, j.split).forEach(function (t) {
-        st.starts.forEach(function (v, i) {
-          tasks.push({ start: t.start, first: t.first, alphabet: t.alphabet, depth: t.depth, minMid: j.minMid, v: i });
+    // Every part once per start (t.v: its index in st.starts). With several starts and more than
+    // the Quick size, a quick pass over every start goes first: good results show up within
+    // seconds, and the full search then takes the starts that did best first (reorder()).
+    var tasks = [], total = 0, pre = st.starts.length > 1 && st.size > 0, preEnd = 0;
+    function add(size, isPre) {
+      jobsFor(st.rails, size).forEach(function (j) {
+        total += TOTALS[st.boat ? 'boat' : 'empty'][j.alphabet][j.depth] * st.starts.length;
+        E.makeTasks(j.alphabet, j.starts, j.depth, j.split).forEach(function (t) {
+          st.starts.forEach(function (v, i) {
+            tasks.push({ start: t.start, first: t.first, alphabet: t.alphabet, depth: t.depth, minMid: j.minMid, v: i, pre: isPre });
+          });
         });
       });
-    });
-    S = { st: st, tasks: tasks, next: 0, done: 0, total: total, nodes: 0, parked: 0, inside: 0, floats: 0,
+    }
+    if (pre) { add(0, true); preEnd = tasks.length; }
+    add(st.size, false);
+    S = { st: st, tasks: tasks, next: 0, done: 0, total: total, nodes: 0, preEnd: preEnd, reordered: !pre,
+          main: { nodes: 0, parked: 0, inside: 0, floats: 0, parts: 0 }, quick: { nodes: 0, parked: 0, inside: 0, floats: 0, parts: 0 },
           live: {}, top: [], t0: performance.now(), slots: [], retry: [], mainThread: null,
           running: true, stopped: false, error: null, opened: {} };
     $('go').disabled = true; $('stop').disabled = false;
@@ -384,18 +392,37 @@
     return { id: id, task: t, facing: st.facing, origin: originFor(t.start, st.pos), axis: st.axis, target: st.target,
              lo: st.lo, hi: st.hi, sort: st.sort, keep: st.keep, how: v.how, boat: v.boat, stopper: v.stopper, approach: v.approach };
   }
+  // The next part to hand out. When the quick pass has all been handed out, the full search's parts
+  // are put in order of how close each start's best quick result came.
+  function nextId(s) {
+    if (!s.reordered && s.next >= s.preEnd) {
+      s.reordered = true;
+      var best = {};
+      s.top.forEach(function (r) { var i = r.v.rank; if (!(i in best) || r.score < best[i]) best[i] = r.score; });
+      var rest = s.tasks.slice(s.preEnd).map(function (t, i) { return { t: t, i: i }; });
+      rest.sort(function (a, b) {
+        var x = a.t.v in best ? best[a.t.v] : Infinity, y = b.t.v in best ? best[b.t.v] : Infinity;
+        return x - y || a.i - b.i;
+      });
+      for (var k = 0; k < rest.length; k++) s.tasks[s.preEnd + k] = rest[k].t;
+    }
+    return s.next++;
+  }
   function dispatch(s, slot) {
     if (s.next >= s.tasks.length) {
       if (s.done === s.tasks.length) finish(s);
       return;
     }
-    slot.id = s.next++;
+    slot.id = nextId(s);
     slot.w.postMessage(taskMsg(s, slot.id));
   }
+  // the counts the summary gives: the full search's, or the quick pass's if it was stopped before any full part
+  function counts(s) { return s.main.parts ? s.main : s.quick; }
   function absorb(s, id, top, stats) {
-    var v = s.st.starts[s.tasks[id].v];
+    var v = s.st.starts[s.tasks[id].v], c = s.tasks[id].pre ? s.quick : s.main;
     s.done++;
-    s.nodes += stats.nodes; s.parked += stats.parked; s.inside += stats.inside; s.floats += stats.floats;
+    s.nodes += stats.nodes;
+    c.nodes += stats.nodes; c.parked += stats.parked; c.inside += stats.inside; c.floats += stats.floats; c.parts++;
     top.forEach(function (r) { r.v = v; r.id = r.code + '|' + vKey(v); });
     if (top.length) { s.top = merge(s.top, top, s.st.keep); s.dirty = true; }
   }
@@ -417,7 +444,7 @@
     if (s !== S || !s.running) return;
     var t0 = performance.now();
     while ((s.retry.length || s.next < s.tasks.length) && performance.now() - t0 < 40) {
-      var id = s.retry.length ? s.retry.shift() : s.next++, m = taskMsg(s, id);
+      var id = s.retry.length ? s.retry.shift() : nextId(s), m = taskMsg(s, id);
       var r = E.searchTask({ how: m.how, boat: m.boat, stopper: m.stopper, approach: m.approach, facing: m.facing, alphabet: m.task.alphabet, depth: m.task.depth, origin: m.origin,
         start: m.task.start, first: m.task.first, minMid: m.task.minMid, axis: m.axis, target: m.target, lo: m.lo, hi: m.hi,
         sort: m.sort, keep: m.keep });
@@ -436,12 +463,30 @@
     clearInterval(S.timer);
     if (!silent) finish(S, true);
   }
+  // A launched result's numbers come from the search's model of the launch (at rest on the start
+  // rail); the full flight can end a trillionth off. Once the search is over, the listed launched
+  // results get the full flight's numbers, and the list is sorted again.
+  function exactFlights(s) {
+    var st = s.st, changed = false;
+    s.top.forEach(function (r) {
+      if (r.v.how !== 'fly' || r.exact) return;
+      var f = E.run(r.code, originFor(startOf(r.code), st.pos), st.facing, false, 20000, optsFor(r.v));
+      r.exact = true;
+      if (!f.ok || (f.x === r.x && f.y === r.y && f.z === r.z)) return;
+      var v = axisValue(f, st.axis), d = E.circDist(v, st.target), inside = E.inRange(frac(v), st.lo, st.hi);
+      r.x = f.x; r.y = f.y; r.z = f.z; r.dist = d; r.inside = inside; r.float = E.isFloatcart(f.y);
+      r.score = st.sort === 'short' && inside ? -1000 + railCount(r.code) + d : d;
+      changed = true;
+    });
+    if (changed) s.top.sort(cmp);
+  }
   function finish(s, stopped) {
     if (s.finished) return;
     s.finished = true; s.running = false;
     killWorkers(s);
     clearInterval(s.timer);
     s.secs = (performance.now() - s.t0) / 1000;
+    exactFlights(s);
     $('go').disabled = false; $('stop').disabled = true;
     $('prog').hidden = true;
     $('status').textContent = s.error ? 'Search failed: ' + s.error : stopped ? 'Stopped.' :
@@ -469,6 +514,8 @@
     if (e.key === 'Enter' && e.target.tagName === 'INPUT' && !$('go').disabled) { e.preventDefault(); start(); }
   });
   $('stop').addEventListener('click', function () { stop(false); });
+  $('resFilter').addEventListener('change', function () { renderRows(true); });
+  $('resGroup').addEventListener('change', function () { renderRows(true); });
 
   /* ---------- results table ---------- */
   var lastRender = 0;
@@ -481,16 +528,29 @@
     var st = s.st, rows = [];
     $('thVal').textContent = st.axis + ' fraction';
     $('thOff').textContent = st.mode === 'range' ? 'Inside by' : 'Off by';
-    if (!s.top.length) rows.push('<tr><td colspan="7" class="empty">' + (s.running ? 'Searching…' : 'No track parked the cart.') + '</td></tr>');
-    s.top.forEach(function (r, i) { rows.push(rowHTML(r, i, st, !!s.opened[r.id], st.starts.length > 1 ? 'both' : 'code')); });
+    // with several starts: show one kind of start, and / or one row per layout (its best start)
+    var many = st.starts.length > 1, kinds = {};
+    st.starts.forEach(function (v) { kinds[v.how] = true; });
+    $('resTools').hidden = !many;
+    Array.prototype.forEach.call($('resFilter').options, function (o) { o.hidden = o.disabled = o.value !== 'all' && !kinds[o.value]; });
+    if ($('resFilter').selectedOptions[0].disabled) $('resFilter').value = 'all';
+    var want = many ? $('resFilter').value : 'all', group = many && $('resGroup').checked, list = [], more = {};
+    s.top.forEach(function (r) {
+      if (want !== 'all' && r.v.how !== want) return;
+      if (group && r.code in more) { more[r.code]++; return; }
+      more[r.code] = 0; list.push(r);
+    });
+    if (!list.length) rows.push('<tr><td colspan="7" class="empty">' + (s.running ? 'Searching…' : s.top.length ? 'None with this start.' : 'No track parked the cart.') + '</td></tr>');
+    list.forEach(function (r, i) { rows.push(rowHTML(r, i, st, !!s.opened[r.id], many ? 'both' : 'code', group ? more[r.code] : 0)); });
     snapCurrent();
     $('rows').innerHTML = rows.join('');
     syncViewer();
     var sum;
     if (s.running) sum = 'Searching… ' + fmtInt(s.done) + ' of ' + fmtInt(s.tasks.length) + ' parts done.';
     else {
-      sum = (s.stopped ? 'Stopped after ' : 'Tried ') + fmtInt(s.nodes) + ' tracks in ' + s.secs.toFixed(1) + ' s. ' + fmtInt(s.parked) + ' parked, ' +
-        fmtInt(s.inside) + ' landed ' + targetText(st) + (st.axis === 'y' ? ', ' + fmtInt(s.floats) + ' made a floatcart.' : '.') +
+      var c = counts(s);
+      sum = (s.stopped ? 'Stopped after ' : 'Tried ') + fmtInt(c.nodes) + ' tracks' + (c === s.quick && s.preEnd ? ' (quick pass)' : '') + ' in ' + s.secs.toFixed(1) + ' s. ' +
+        fmtInt(c.parked) + ' parked, ' + fmtInt(c.inside) + ' landed ' + targetText(st) + (st.axis === 'y' ? ', ' + fmtInt(c.floats) + ' made a floatcart.' : '.') +
         (s.top.length ? ' Results are for a start rail at ' + st.pos.join(' ') + ', track running ' + st.facing +
           (st.starts.length === 1 && st.starts[0].how !== 'hand' ? startPhrase(st.starts[0]) : '') + '.' : '');
     }
@@ -498,13 +558,13 @@
   }
   // one result as a row of the table (and its details under it when open)
   // show: 'code' the layout, 'both' the layout and its start, 'start' the start alone
-  function rowHTML(r, i, st, open, show) {
+  function rowHTML(r, i, st, open, show, more) {
     var badge = r.float && st.axis === 'y' ? '<span class="badge fc" title="Inside the floatcart window at this build position">floatcart</span>'
       : r.inside ? '<span class="badge in">' + (st.mode === 'range' ? 'in range' : 'match') + '</span>' : '';
     var parked = r.ok !== false;
     return '<tr class="r' + (open ? ' open' : '') + '" data-id="' + esc(r.id) + '">' +
       '<td class="n">' + (i + 1) + '</td>' +
-      '<td class="lay">' + (show === 'start' ? '' : tokensHTML(r.code)) + (show === 'code' ? '' : '<span class="startv">' + esc(startWords(r.v)) + '</span>') + '</td>' +
+      '<td class="lay">' + (show === 'start' ? '' : tokensHTML(r.code)) + (show === 'code' ? '' : '<span class="startv">' + esc(startWords(r.v)) + (more ? ' · +' + more + ' more start' + (more === 1 ? '' : 's') : '') + '</span>') + '</td>' +
       (parked ? '<td class="yf"><span class="mono">' + fmtFrac(axisValue(r, st.axis)) + '</span>' + badge + '</td>' +
         '<td class="num off mono' + (st.mode === 'range' && !r.inside ? ' miss' : '') + '" data-lab="' + (st.mode === 'range' ? 'inside by ' : 'off by ') + '">' + offText(r, st) + '</td>'
         : '<td class="yf"><span class="miss">does not park</span></td><td class="num off mono"></td>') +
@@ -588,6 +648,7 @@
     }
     h += '<div class="dv-actions">' +
       '<button type="button" class="btn sm" data-act="copy" data-id="' + id + '">Copy layout code</button>' +
+      '<button type="button" class="btn sm" data-act="link" data-id="' + id + '">Copy link</button>' +
       '<button type="button" class="btn sm" data-act="lite" data-id="' + id + '">Download .litematic</button>' +
       (r.ok ? '<button type="button" class="btn sm" data-act="tester" data-id="' + id + '">Download with tester</button>' : '') +
       '<button type="button" class="btn sm" data-act="verify" data-id="' + id + '">Check at ' + (st.axis === 'y' ? 60 : 15) + ' positions</button>' +
@@ -714,23 +775,33 @@
     var res = RES[btn.getAttribute('data-id')], act = btn.getAttribute('data-act');
     var st = btn.closest('#checkOut') && CHECK ? CHECK.st : S ? S.st : readAll();
     if (!st || !res) return;
-    if (act === 'copy') copy(res);
+    if (act === 'copy') copyText(res.code, res.id, 'Copied.');
+    else if (act === 'link') copyText(linkFor(res, st), res.id, 'Link copied. It opens this track with these settings.');
     else if (act === 'lite') download(res, st);
     else if (act === 'tester') downloadTester(res, st);
     else if (act === 'verify') verify(res, st, btn);
   }
-  function copy(res) {
-    var code = res.code;
-    function done() { note(res.id, 'Copied.'); }
+  function copyText(text, id, msg) {
+    function done() { note(id, msg); }
     function fallback() {
       var ta = document.createElement('textarea');
-      ta.value = code; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
       document.body.appendChild(ta); ta.select();
-      try { document.execCommand('copy'); done(); } catch (err) { note(res.id, 'Copy failed: select the code and copy it.'); }
+      try { document.execCommand('copy'); done(); } catch (err) { note(id, 'Copy failed. Copy this: ' + text); }
       document.body.removeChild(ta);
     }
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(done, fallback);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
     else fallback();
+  }
+  // a link that opens this result: the search's settings, its start pinned, and the layout checked
+  function linkFor(res, st) {
+    var v = res.v, o = { axis: st.axis, mode: st.mode, px: st.pos[0], py: st.pos[1], pz: st.pos[2], facing: st.facing,
+      rails: st.rails, size: st.size, keep: st.keep, sort: st.sort };
+    if (st.mode === 'value') { o.target = st.target.toFixed(10); o.tol = String(st.w); } else { o.lo = st.lo.toFixed(10); o.hi = st.hi.toFixed(10); }
+    if (v.how === 'hand') { o.cart = 'empty'; o.how = 'hand'; }
+    else { o.cart = v.boat ? 'boat' : 'empty'; o.how = v.how; o.stopAll = 'one'; o.stopper = v.stopper; o.approach = v.approach; }
+    o.check = res.code;
+    return location.href.split('#')[0] + '#' + encodeState(o);
   }
   function download(res, st) {
     var code = res.code, v = res.v, o = optsFor(v), origin = originFor(startOf(code), st.pos);
@@ -853,6 +924,49 @@
   $('checkBtn').addEventListener('click', check);
   $('code').addEventListener('keydown', function (e) { if (e.key === 'Enter') check(); });
 
+  /* ---------- the settings in the address (a link to share), and remembered for the next visit ---------- */
+  var RADIOS = ['axis', 'mode', 'cart', 'stopAll', 'rails', 'size'],
+      VALUES = ['target', 'tol', 'lo', 'hi', 'how', 'stopper', 'approach', 'px', 'py', 'pz', 'facing', 'keep', 'sort'], SAVE_KEY = 'floatcart-finder';
+  function formState() {
+    var o = {};
+    RADIOS.forEach(function (n) { o[n] = choice(n); });
+    VALUES.forEach(function (id) { o[id] = $(id).value; });
+    return o;
+  }
+  function encodeState(o) { return Object.keys(o).map(function (k) { return encodeURIComponent(k) + '=' + encodeURIComponent(o[k]); }).join('&'); }
+  function decodeState(h) {
+    var o = {};
+    String(h).replace(/^#/, '').split('&').forEach(function (p) {
+      var i = p.indexOf('=');
+      if (i > 0) try { o[decodeURIComponent(p.slice(0, i))] = decodeURIComponent(p.slice(i + 1)); } catch (e) { /* a broken part is skipped */ }
+    });
+    return o;
+  }
+  function applyState(o) {
+    RADIOS.forEach(function (n) {
+      if (o[n] == null) return;
+      each('input[name="' + n + '"]', function (el) { if (el.value === String(o[n])) el.checked = true; });
+    });
+    VALUES.forEach(function (id) {
+      var el = $(id);
+      if (o[id] == null || (el.tagName === 'SELECT' && !Array.prototype.some.call(el.options, function (x) { return x.value === String(o[id]); }))) return;
+      el.value = o[id];
+    });
+    howKind = choice('cart') === 'boat' ? 'boat' : 'empty'; howFor[howKind] = $('how').value;   // keep the start the state asks for
+    syncAxis(); syncMode(); syncCart();
+  }
+  function saveState() {
+    var q = encodeState(formState());
+    try { localStorage.setItem(SAVE_KEY, q); } catch (e) { /* private window: nothing to remember with */ }
+    try { history.replaceState(null, '', location.href.split('#')[0] + '#' + q); } catch (e) { /* a file:// page may refuse */ }
+  }
+  document.querySelector('.rail').addEventListener('change', function () { setTimeout(saveState, 0); });
+  $('presetFloat').addEventListener('click', function () { setTimeout(saveState, 0); });
+
   syncAxis(); syncCart(); syncMode(); sizeHint();
+  var linked = location.hash.length > 1 ? decodeState(location.hash) : null, saved = null;
+  if (!linked) try { saved = localStorage.getItem(SAVE_KEY); } catch (e) { saved = null; }
+  if (linked || saved) applyState(linked || decodeState(saved));
+  if (linked && linked.check) { $('code').value = linked.check; check(); }
   probeWorkers(['blob', 'data']);
 })();

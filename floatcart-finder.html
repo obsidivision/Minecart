@@ -172,7 +172,13 @@
       </div>
 
       <section class="results" id="results" hidden aria-labelledby="h-res">
-        <div class="res-head"><h2 id="h-res">Closest tracks</h2></div>
+        <div class="res-head"><h2 id="h-res">Closest tracks</h2>
+          <div class="res-tools" id="resTools" hidden>
+            <label class="visually-hidden" for="resFilter">Which starts to show</label>
+            <select id="resFilter"><option value="all">All starts</option><option value="hand">Placed by hand</option><option value="fly">Launched</option><option value="loader">Loading run</option></select>
+            <label class="chk"><input type="checkbox" id="resGroup"> One row per layout</label>
+          </div>
+        </div>
         <p id="summary" aria-live="polite"></p>
         <div id="prog" hidden>
           <div class="progress" id="barBox" role="progressbar" aria-label="Search progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar"></i></div>
