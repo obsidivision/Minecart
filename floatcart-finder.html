@@ -12,12 +12,12 @@
 </head>
 <!--
   Minecart alignment finder. Plain JavaScript, no framework or libraries, and nothing is
-  fetched from the network: the page needs site.css, site.js, scene3d.js and
-  floatcart-finder.js beside it. Aims for the parked cart's y, or its x / z after the parking
+  fetched from the network: the page needs site.css, site.js, scene3d.js, engine.js,
+  litematic.js, tester.js, viewer3d.js and finder.js beside it. Aims for the parked cart's y, or its x / z after the parking
   rail is broken (the cart then falls straight down, see dropY), at one value or a range.
 
-  For whoever maintains it: floatcart-finder.js is the source, edited directly; there is no
-  build step. Its physics engine (makeEngine) began as a port of the now retired Python
+  For whoever maintains it: the scripts are the source, edited directly; there is no build
+  step. The physics engine (makeEngine, engine.js) began as a port of the now retired Python
   simulator, checked against it to the last digit (7,980 full runs, every search outcome at
   depths 3 to 5, and the full searches that found the 13 floatcart makers). The search runs in
   Web Workers made from makeEngine's own source.
@@ -191,7 +191,7 @@
           <div><dt>Accuracy</dt><dd>Matches FarCoolHat's stored cart and was confirmed in game on 13 tracks.</dd></div>
           <div><dt>x and z</dt><dd>Break the parking rail and the cart drops straight down.</dd></div>
           <div><dt>Stoppers</dt><dd>Stop the cart against a block or bud instead of placing it. Each one gives a different start.</dd></div>
-          <div><dt>Launcher</dt><dd>FarCoolHat's stopper: nothing to break. Not tested in game yet.</dd></div>
+          <div><dt>Launcher</dt><dd>FarCoolHat's stopper: nothing to break. Works in game.</dd></div>
           <div><dt>Boats</dt><dd>The cart picks the boat up on the way. It moves differently with one inside.</dd></div>
           <div><dt>Position</dt><dd>Moving the track changes the last few digits.</dd></div>
           <div><dt>Keep it clear</dt><dd>The cart grabs mobs and boats it passes.</dd></div>
@@ -208,6 +208,10 @@
 </footer>
 <script src="site.js"></script>
 <script src="scene3d.js"></script>
-<script src="floatcart-finder.js"></script>
+<script src="engine.js"></script>
+<script src="litematic.js"></script>
+<script src="tester.js"></script>
+<script src="viewer3d.js"></script>
+<script src="finder.js"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 /* home.js — the homepage's live view: random straight tracks, built and run one after another
-   with the finder's engine (makeEngine, from floatcart-finder.js), while the camera turns.
+   with the finder's engine (makeEngine, from engine.js), while the camera turns.
    Each track is picked at random (start, rails, direction, and sometimes a launcher, with or
    without a boat); a track the cart doesn't park on is thrown away before it is shown. When the
    cart parks, the view holds a moment and the next track takes its place. */
