@@ -731,6 +731,19 @@ function makeScene3D(host, opt) {
     reset: resetView,
     // turn the camera around its target by an angle (radians), for a view that spins by itself
     turn: function (a) { cam.az += a; request(); },
+    // the camera now ({target, r, el, az}), or set any of those; and the framing that fits the
+    // scene, without moving to it (for a page that glides there itself)
+    camera: function (o) {
+      if (o) {
+        if (o.target) cam.target = o.target.slice();
+        if (o.r != null) cam.r = o.r;
+        if (o.el != null) cam.el = o.el;
+        if (o.az != null) cam.az = o.az;
+        request();
+      }
+      return { target: cam.target.slice(), r: cam.r, el: cam.el, az: cam.az };
+    },
+    fitted: function () { if (!measured) return null; fitHome(); return HOME && { target: HOME.target.slice(), r: HOME.r, el: HOME.el }; },
     follow: function (p) { follow = p ? p.slice() : null; if (p) touched = true; request(); },
     request: request,
     resize: resize,

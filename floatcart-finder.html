@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Minecart alignment finder · Minecraft Java 26.2</title>
-<meta name="description" content="Enter where you want a minecart to stop. The finder tries millions of straight rail tracks in your browser and lists the closest, floatcarts included.">
+<meta name="description" content="Find a minecart track that stops the cart where you want. Floatcarts included.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
@@ -33,7 +33,7 @@
 <div class="wrap">
 <header class="site">
   <h1>Alignment finder</h1>
-  <p class="sub">Pick where you want the cart to stop. The finder tries every straight track up to the size you choose and lists the closest.</p>
+  <p class="sub">Enter where the cart should stop and get a track for it.</p>
 </header>
   <div class="finder">
     <section class="rail" aria-label="Search settings">
@@ -139,7 +139,7 @@
           <label>Z<input type="text" id="pz" class="mono" inputmode="numeric" value="0" autocomplete="off"></label>
           <label class="wide">Track runs<select id="facing"><option value="south">south (+Z)</option><option value="north">north (&#8722;Z)</option><option value="east">east (+X)</option><option value="west">west (&#8722;X)</option></select></label>
         </div>
-        <p class="hint" id="posHint">Where the start rail goes. Results are exact for this spot; moving the track changes the last few digits.</p>
+        <p class="hint" id="posHint">The start rail. Moving it changes the last few digits.</p>
       </details>
       <div class="keep">
         <label>List<select id="keep"><option>10</option><option selected>20</option><option>50</option><option>100</option></select></label>
@@ -163,12 +163,11 @@
       <div id="checkOut" aria-live="polite"></div>
 
       <div class="intro-empty" id="intro">
-        <h2>Find a track that stops a cart where you want</h2>
-        <p>Everything runs in your browser. Each result comes with a 3D view, a build list and a schematic.</p>
+        <h2>Find a track</h2>
         <ol>
-          <li><span>Choose what to aim for: the cart's height, or its x or z after you break the rail under it.</span></li>
-          <li><span>Enter a target, or click <b>Floatcart window</b>.</span></li>
-          <li><span>Click <b>Find tracks</b>. A normal search takes a few seconds.</span></li>
+          <li><span>Pick y, or x/z (you break the rail under the cart after).</span></li>
+          <li><span>Enter a target, or use <b>Floatcart window</b>.</span></li>
+          <li><span>Hit <b>Find tracks</b>.</span></li>
         </ol>
       </div>
 
@@ -183,21 +182,19 @@
           <thead><tr><th>#</th><th>Layout</th><th id="thVal">y fraction</th><th class="num" id="thOff">Off by</th><th class="num">Rails</th><th class="num">Levers</th><th><span class="visually-hidden">Details</span></th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
-        <p class="legend">Each token is one rail. <span class="tok st">Dr</span> starts on a down slope (<span class="tok st p">Dp</span> powered, <span class="tok st p">S</span> flat with a block behind it). Then <b>F</b>&#8202;/&#8202;<b>U</b>&#8202;/&#8202;<b>D</b> for flat, up, down, and <b>r</b> plain, <span class="tok p">p</span> powered or <span class="tok h">h</span> powered but off. <span class="tok e">E</span> is the parking slope. If you searched more than one start, it's shown under the layout. Click a row for details.</p>
+        <p class="legend">One token per rail: <b>F</b>&#8202;/&#8202;<b>U</b>&#8202;/&#8202;<b>D</b> flat, up, down, and <b>r</b> plain, <span class="tok p">p</span> powered, <span class="tok h">h</span> powered but off. Starts are <span class="tok st">Dr</span>, <span class="tok st p">Dp</span> or <span class="tok st p">S</span>, and <span class="tok e">E</span> is the parking slope.</p>
       </section>
 
       <section class="notes" aria-labelledby="h-notes">
-        <h2 id="h-notes">How it works</h2>
-        <p>A track is a straight line of rails. The cart rolls from the first rail and stops on the last one, an unpowered powered rail on a slope. How far up that slope it stops sets its height.</p>
+        <h2 id="h-notes">Notes</h2>
         <dl>
-          <div><dt>Physics</dt><dd>It matches FarCoolHat's stored cart exactly and was confirmed in game on 13 tracks.</dd></div>
-          <div><dt>x and z</dt><dd>Break the parking rail and the cart drops straight down, keeping its x and z.</dd></div>
-          <div><dt>Stoppers</dt><dd>Instead of placing the cart, you can stop it against a block or an amethyst bud so it settles on the start rail. Each stopper, and the side the cart comes from, gives a different starting spot, 16 in all. <i>Try every stopper</i> searches them all.</dd></div>
-          <div><dt>The launcher</dt><dd>Based on FarCoolHat's stopper. The cart runs off a powered slope, hits the stopper in mid-air and drops onto the start rail, so there's nothing to break. It's simulated but hasn't been tested in game yet.</dd></div>
-          <div><dt>Boat carts</dt><dd>You can't place a cart with a boat already in it, so it picks the boat up on the way, on the launcher or on a loading run. A cart with a passenger moves differently, so it gets its own results.</dd></div>
-          <div><dt>Where you build</dt><dd>Moving the track changes the last few digits. <i>Check at 60 positions</i> reruns it around the world in all four directions.</dd></div>
-          <div><dt>Keep it clear</dt><dd>A moving cart grabs mobs and boats it passes, which ruins the run. Keep the track clear and leave the experimental minecart changes off.</dd></div>
-          <div><dt>Downloads</dt><dd>The schematic on its own, or with command blocks that run the cart and post the result in chat.</dd></div>
+          <div><dt>Accuracy</dt><dd>Matches FarCoolHat's stored cart and was confirmed in game on 13 tracks.</dd></div>
+          <div><dt>x and z</dt><dd>Break the parking rail and the cart drops straight down.</dd></div>
+          <div><dt>Stoppers</dt><dd>Stop the cart against a block or bud instead of placing it. Each one gives a different start.</dd></div>
+          <div><dt>Launcher</dt><dd>FarCoolHat's stopper: nothing to break. Not tested in game yet.</dd></div>
+          <div><dt>Boats</dt><dd>The cart picks the boat up on the way. It moves differently with one inside.</dd></div>
+          <div><dt>Position</dt><dd>Moving the track changes the last few digits.</dd></div>
+          <div><dt>Keep it clear</dt><dd>The cart grabs mobs and boats it passes.</dd></div>
         </dl>
       </section>
     </section>
