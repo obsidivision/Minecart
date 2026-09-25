@@ -702,6 +702,10 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
 .colophon { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 13px; }
 .colophon dt { color: var(--fg-3); }
 .colophon dd { margin: 0; color: var(--fg); font-weight: 600; }
+.colophon dd a { text-decoration-color: var(--line); }
+.colophon dd a:hover { color: var(--brand-text); text-decoration-color: currentColor; }
+.colophon a.has-ico { display: inline-flex; align-items: center; gap: 6px; vertical-align: bottom; }
+.colophon .ico { width: 18px; height: 18px; border-radius: 50%; flex: none; box-shadow: 0 0 0 1px var(--line); }
 .index { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; counter-reset: pg; }
 .index li { counter-increment: pg; border-bottom: 1px solid var(--line); }
 .index li:nth-child(odd) { border-right: 1px solid var(--line); }
