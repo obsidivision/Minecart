@@ -647,11 +647,13 @@
       h += '<div class="glbox" data-gl="' + esc(key) + '"></div>';
     }
     h += '<div class="dv-actions">' +
+      '<button type="button" class="btn primary sm" data-act="lite" data-id="' + id + '">Download .litematic</button>' +
+      '<details class="more-menu"><summary class="btn sm">More</summary><div class="menu">' +
       '<button type="button" class="btn sm" data-act="copy" data-id="' + id + '">Copy layout code</button>' +
       '<button type="button" class="btn sm" data-act="link" data-id="' + id + '">Copy link</button>' +
-      '<button type="button" class="btn sm" data-act="lite" data-id="' + id + '">Download .litematic</button>' +
       (r.ok ? '<button type="button" class="btn sm" data-act="tester" data-id="' + id + '">Download with tester</button>' : '') +
       '<button type="button" class="btn sm" data-act="verify" data-id="' + id + '">Check at ' + (st.axis === 'y' ? 60 : 15) + ' positions</button>' +
+      '</div></details>' +
       '<span class="note" data-for="' + id + '"></span></div>';
     h += '@@VERIFY@@';
     h += buildTableHTML(b, st);
@@ -772,7 +774,8 @@
     var btn = e.target.closest ? e.target.closest('button[data-act]') : null;
     if (!btn) return;
     e.stopPropagation();
-    var res = RES[btn.getAttribute('data-id')], act = btn.getAttribute('data-act');
+    var res = RES[btn.getAttribute('data-id')], act = btn.getAttribute('data-act'), menu = btn.closest('details');
+    if (menu) menu.removeAttribute('open');
     var st = btn.closest('#checkOut') && CHECK ? CHECK.st : S ? S.st : readAll();
     if (!st || !res) return;
     if (act === 'copy') copyText(res.code, res.id, 'Copied.');

@@ -64,7 +64,8 @@
       for (var k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k] + 1); }
     });
     var cx = (lo[0] + hi[0]) / 2, cz = (lo[2] + hi[2]) / 2, rad = Math.hypot(hi[0] - lo[0], hi[2] - lo[2]) / 2 + 0.5;
-    S.grid([cx - rad, lo[1], cz - rad, cx + rad, hi[1], cz + rad], 0, false);
+    var gr = rad * 2.6;                                     // wide: the fog fades it out toward a horizon
+    S.grid([cx - gr, lo[1], cz - gr, cx + gr, hi[1], cz + gr], 0, false);
     for (var a = 0; a < 16; a++) {
       var x = cx + rad * Math.cos(a * Math.PI / 8), z = cz + rad * Math.sin(a * Math.PI / 8);
       S.fitPoint([x, lo[1], z]); S.fitPoint([x, hi[1], z]);

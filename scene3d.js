@@ -84,13 +84,18 @@ function makeScene3D(host, opt) {
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
 
   /* ---------- programs and buffers ---------- */
-  var VS = 'attribute vec3 aPos;attribute vec3 aNrm;uniform mat4 uPV;uniform mat4 uM;uniform mat3 uN;varying vec3 vN;' +
-           'void main(){vN=uN*aNrm;gl_Position=uPV*uM*vec4(aPos,1.0);}';
-  var FS = 'precision mediump float;uniform vec4 uColor;varying vec3 vN;' +
-           'void main(){vec3 n=normalize(vN);float l=0.64*n.x*n.x+0.82*n.z*n.z+(n.y>0.0?1.0:0.52)*n.y*n.y;' +
-           'gl_FragColor=vec4(uColor.rgb*l,uColor.a);}';
-  var LVS = 'attribute vec3 aPos;uniform mat4 uPV;uniform mat4 uM;void main(){gl_Position=uPV*uM*vec4(aPos,1.0);}';
-  var LFS = 'precision mediump float;uniform vec4 uColor;void main(){gl_FragColor=uColor;}';
+  // Meshes: a pixel texture from the atlas (uTile: its corner and size, on or off), taken from the
+  // face's own unit-cube coordinates, times the colour, shaded by the face's direction; lines and
+  // meshes both fade into the background with distance (uFog: start, end, strength; uFogC).
+  var FOG = 'uniform vec3 uFog;uniform vec3 uFogC;vec3 fog(vec3 c,float d){return mix(c,uFogC,clamp((d-uFog.x)/(uFog.y-uFog.x),0.0,1.0)*uFog.z);}';
+  var VS = 'attribute vec3 aPos;attribute vec3 aNrm;uniform mat4 uPV;uniform mat4 uM;uniform mat3 uN;varying vec3 vN;varying vec2 vUV;varying float vD;' +
+           'void main(){vN=uN*aNrm;vec3 a=abs(aNrm);vUV=a.x>0.5?aPos.zy:a.y>0.5?aPos.xz:aPos.xy;gl_Position=uPV*uM*vec4(aPos,1.0);vD=gl_Position.w;}';
+  var FS = 'precision mediump float;uniform vec4 uColor;uniform vec4 uTile;uniform sampler2D uTex;varying vec3 vN;varying vec2 vUV;varying float vD;' + FOG +
+           'void main(){vec3 n=normalize(vN);float l=0.62*n.x*n.x+0.8*n.z*n.z+(n.y>0.0?1.0:0.5)*n.y*n.y;' +
+           'vec4 t=uTile.w>0.5?texture2D(uTex,uTile.xy+clamp(vec2(vUV.x,1.0-vUV.y),0.0,0.999)*uTile.z):vec4(1.0);' +
+           'gl_FragColor=vec4(fog(uColor.rgb*t.rgb*l,vD),uColor.a*t.a);}';
+  var LVS = 'attribute vec3 aPos;uniform mat4 uPV;uniform mat4 uM;varying float vD;void main(){gl_Position=uPV*uM*vec4(aPos,1.0);vD=gl_Position.w;}';
+  var LFS = 'precision mediump float;uniform vec4 uColor;varying float vD;' + FOG + 'void main(){gl_FragColor=vec4(fog(uColor.rgb,vD),uColor.a*(1.0-clamp((vD-uFog.x)/(uFog.y-uFog.x),0.0,1.0)*uFog.z*0.6));}';
   function shader(type, src) {
     var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
     if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
@@ -105,9 +110,41 @@ function makeScene3D(host, opt) {
   }
   var PM = program(VS, FS), PL = program(LVS, LFS);
   var AM = { aPos: gl.getAttribLocation(PM, 'aPos'), aNrm: gl.getAttribLocation(PM, 'aNrm'), uPV: gl.getUniformLocation(PM, 'uPV'),
-             uM: gl.getUniformLocation(PM, 'uM'), uN: gl.getUniformLocation(PM, 'uN'), uColor: gl.getUniformLocation(PM, 'uColor') };
+             uM: gl.getUniformLocation(PM, 'uM'), uN: gl.getUniformLocation(PM, 'uN'), uColor: gl.getUniformLocation(PM, 'uColor'),
+             uTile: gl.getUniformLocation(PM, 'uTile'), uTex: gl.getUniformLocation(PM, 'uTex'), uFog: gl.getUniformLocation(PM, 'uFog'), uFogC: gl.getUniformLocation(PM, 'uFogC') };
   var AL = { aPos: gl.getAttribLocation(PL, 'aPos'), uPV: gl.getUniformLocation(PL, 'uPV'), uM: gl.getUniformLocation(PL, 'uM'),
-             uColor: gl.getUniformLocation(PL, 'uColor') };
+             uColor: gl.getUniformLocation(PL, 'uColor'), uFog: gl.getUniformLocation(PL, 'uFog'), uFogC: gl.getUniformLocation(PL, 'uFogC') };
+
+  /* ---------- pixel textures: a 64 x 64 atlas of 16 x 16 tiles, drawn here (nothing is loaded) ----------
+     Mostly light, so a block's own colour still shows through them; glass carries its look in alpha. */
+  var TILE = { glass: 0, concrete: 1, honey: 2, note: 3, planks: 4, stone: 5, amethyst: 6, cart: 7 };
+  var tex = (function () {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 64;
+    var g = cv.getContext('2d'), seed = 7;
+    function rnd() { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }
+    function px(t, x, y, v, a) { var tx = (t % 4) * 16, ty = Math.floor(t / 4) * 16; g.fillStyle = 'rgba(' + v + ',' + v + ',' + v + ',' + (a == null ? 1 : a) + ')'; g.fillRect(tx + x, ty + y, 1, 1); }
+    for (var t = 0; t < 8; t++) for (var y = 0; y < 16; y++) for (var x = 0; x < 16; x++) {
+      var e = x === 0 || y === 0 || x === 15 || y === 15, n = rnd();
+      switch (t) {
+        case TILE.glass: px(t, x, y, 255, e ? 1 : (x === y + 3 || x === y + 4 || x === y - 7) && x > 2 && x < 13 ? 0.55 : 0.12); break;
+        case TILE.concrete: px(t, x, y, 236 + Math.floor(n * 14)); break;
+        case TILE.honey: px(t, x, y, e ? 196 : (x === 1 || y === 1 || x === 14 || y === 14) ? 255 : 226 + Math.floor(n * 22)); break;
+        case TILE.note: px(t, x, y, e ? 150 : y % 4 === 0 ? 180 : 205 + Math.floor(n * 30)); break;
+        case TILE.planks: px(t, x, y, y % 4 === 3 ? 170 : (x + (y >> 2) * 5) % 8 === 0 ? 190 : 215 + Math.floor(n * 30)); break;
+        case TILE.stone: px(t, x, y, 200 + Math.floor(n * 45) - (n > 0.9 ? 40 : 0)); break;
+        case TILE.amethyst: px(t, x, y, (x + y) % 5 === 0 ? 255 : (x - y + 16) % 6 === 0 ? 175 : 215 + Math.floor(n * 25)); break;
+        case TILE.cart: px(t, x, y, e ? 190 : (x === 1 || x === 14) && y % 3 === 1 ? 175 : 228 + Math.floor(n * 20)); break;
+      }
+    }
+    var t0 = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, t0);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, cv);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    return t0;
+  })();
+  var NO_TILE = new Float32Array([0, 0, 0, 0]);
+  function tileOf(t) { return t == null ? NO_TILE : new Float32Array([(t % 4) * 0.25, Math.floor(t / 4) * 0.25, 0.25, 1]); }
   function vbo(arr) { var b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, arr, gl.STATIC_DRAW); return b; }
   function lineBuf(arr) { return { b: vbo(new Float32Array(arr)), n: arr.length / 3 }; }
 
@@ -145,6 +182,7 @@ function makeScene3D(host, opt) {
     TH.scene = hex(g('--scene', '#f2f2f4'));
     TH.grid = hex(g('--grid', '#d6d7dc'), 0.95);
     TH.glassEdge = hex(g('--glass-edge', '#8aa1b4'), 0.85);
+    TH.shade = hex(g('--scene-shade', '#2a241c'));
     TH.run = hex(g('--run', '#eb6834'));
     TH.sol = hex(g('--sol', '#1baf7a'));
     TH.focus = hex(g('--focus', '#2a78d6'));
@@ -163,13 +201,13 @@ function makeScene3D(host, opt) {
     goldOff: '#8a7434', iron: '#a7abb0', lit: '#ec3b2a', unlit: '#4f2320', detector: '#7d4f4a', sign: '#dd9b98',
     lever: '#6c6c6c', stick: '#7a5431', axle: '#3b3f44', stand: '#a27b4c', standBase: '#9b9b9b', boat: '#a9743e', boatTrim: '#7d5124'
   };
-  var objs = [], picks = [], byPos = {}, notes = {}, signs = {}, fitPts = [], rails = {};
+  var objs = [], picks = [], byPos = {}, notes = {}, signs = {}, fitPts = [], rails = {}, shadows = [];
   // col: [r,g,b,a], or a theme key ('run', 'sol', ...) with an alpha; edge: a colour, 'dark', 'glass' or null
   function add(m, col, o) {
     o = o || {};
     var ob = { m: m, nm: normalMat(m), col: typeof col === 'string' ? null : col, key: typeof col === 'string' ? col : null,
                a: o.a == null ? 1 : o.a, edge: o.edge === undefined ? 'dark' : o.edge, lines: o.lines || null, bias: o.bias || 0,
-               aabb: aabbOf(m), tag: o.tag || null };
+               aabb: aabbOf(m), tag: o.tag || null, tile: tileOf(o.tex) };
     ob.trans = (ob.col ? ob.col[3] : ob.a) < 1;
     objs.push(ob); return ob;
   }
@@ -210,29 +248,29 @@ function makeScene3D(host, opt) {
     var name = String(arr ? b[3] : b.name).replace('minecraft:', ''), pr = (arr ? b[4] : b.props) || {}, parts = [];
     function P(mn, sz, col, o) { var ob = add(boxM([x + mn[0], y + mn[1], z + mn[2]], sz), col, o); parts.push(ob); return ob; }
     var rec = { pos: [x, y, z], key: (x + off[0]) + ',' + (y + off[1]) + ',' + (z + off[2]), name: name, pr: pr, parts: parts };
-    if (/stained_glass$|^glass$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.glass, 0.13), { edge: 'glass' });
-    else if (/concrete$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.concrete));
+    if (/stained_glass$|^glass$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.glass, 0.5), { edge: 'glass', tex: TILE.glass });
+    else if (/concrete$/.test(name)) P([0, 0, 0], [1, 1, 1], hex(C.concrete), { tex: TILE.concrete });
     else if (BUDS[name]) {
       var bd = budBox(name, pr.facing || 'up');
-      P([bd[0], bd[1], bd[2]], [bd[3] - bd[0], bd[4] - bd[1], bd[5] - bd[2]], hex(C.bud));
+      P([bd[0], bd[1], bd[2]], [bd[3] - bd[0], bd[4] - bd[1], bd[5] - bd[2]], hex(C.bud), { tex: TILE.amethyst });
     } else switch (name) {
       case 'honey_block':
-        P([0, 0, 0], [1, 1, 1], hex(C.honey, 0.55), { edge: hex('#b36d0c', 0.9) });
+        P([0, 0, 0], [1, 1, 1], hex(C.honey, 0.6), { edge: hex('#b36d0c', 0.9), tex: TILE.honey });
         P([0.0625, 0.0625, 0.0625], [0.875, 0.875, 0.875], hex(C.honeyCore, 0.45), { edge: null, bias: 0.05 });
         break;
       case 'waxed_oxidized_copper_grate':
         P([0, 0, 0], [1, 1, 1], hex(C.grate, 0.38), { edge: hex('#2f6e5c', 0.95), lines: 'grate' });
         if (pr.waterlogged !== 'false') P([0.03, 0.03, 0.03], [0.94, 0.86, 0.94], hex(C.water, 0.33), { edge: null, bias: 0.05 });
         break;
-      case 'note_block': P([0, 0, 0], [1, 1, 1], hex(C.note)); break;
+      case 'note_block': P([0, 0, 0], [1, 1, 1], hex(C.note), { tex: TILE.note }); break;
       case 'observer':                                     // as built in the challenge: face north
-        P([0, 0, 0], [1, 1, 1], hex(C.observer));
+        P([0, 0, 0], [1, 1, 1], hex(C.observer), { tex: TILE.stone });
         P([0.12, 0.12, -0.012], [0.76, 0.76, 0.02], hex(C.observerFace), { edge: null });
         P([0.4, 0.4, 0.992], [0.2, 0.2, 0.02], hex(C.red), { edge: null });
         break;
       case 'piston':                                       // facing west
-        P([0.25, 0, 0], [0.75, 1, 1], hex(C.piston));
-        P([0, 0, 0], [0.25, 1, 1], hex(C.pistonFace));
+        P([0.25, 0, 0], [0.75, 1, 1], hex(C.piston), { tex: TILE.stone });
+        P([0, 0, 0], [0.25, 1, 1], hex(C.pistonFace), { tex: TILE.planks });
         break;
       case 'polished_deepslate_wall':
         P([0.25, 0, 0.25], [0.5, 1, 0.5], hex(C.wall));
@@ -271,9 +309,9 @@ function makeScene3D(host, opt) {
     var base = T(x + 0.5, y + (asc ? 0.5 : 0), z + 0.5);
     if (/east|west/.test(shape)) base = chain(base, RY(Math.PI / 2));
     if (asc) base = chain(base, RX(/south|east/.test(shape) ? -Math.PI / 4 : Math.PI / 4));
-    function B(mn, sz, col) { var ob = add(chain(base, boxM(mn, sz)), col, { edge: null }); rec.parts.push(ob); return ob; }
+    function B(mn, sz, col, t) { var ob = add(chain(base, boxM(mn, sz)), col, { edge: null, tex: t }); rec.parts.push(ob); return ob; }
     var n = asc ? 6 : 4;
-    for (var i = 0; i < n; i++) B([-0.42, 0, -L / 2 + (i + 0.5) * L / n - 0.065], [0.84, 0.03, 0.13], hex(C.tie));
+    for (var i = 0; i < n; i++) B([-0.42, 0, -L / 2 + (i + 0.5) * L / n - 0.065], [0.84, 0.03, 0.13], hex(C.tie), TILE.planks);
     var metal = kind === 'powered_rail' ? (powered ? C.gold : C.goldOff) : C.iron;
     rec.rails = [B([-0.34, 0.03, -L / 2], [0.08, 0.04, L], hex(metal)), B([0.26, 0.03, -L / 2], [0.08, 0.04, L], hex(metal))];
     if (kind === 'powered_rail') rec.strip = B([-0.04, 0.02, -L / 2 + 0.04], [0.08, 0.025, L - 0.08], hex(powered ? C.lit : C.unlit));
@@ -300,7 +338,9 @@ function makeScene3D(host, opt) {
     [[-0.4, 0.12, -0.49], [0.8, 0.06, 0.98], 1], [[-0.4, 0.12, -0.49], [0.06, 0.5, 0.98], 1],
     [[0.34, 0.12, -0.49], [0.06, 0.5, 0.98], 1], [[-0.34, 0.12, -0.49], [0.68, 0.5, 0.06], 1],
     [[-0.34, 0.12, 0.43], [0.68, 0.5, 0.06], 1], [[-0.44, 0.03, -0.33], [0.88, 0.09, 0.1], 0],
-    [[-0.44, 0.03, 0.23], [0.88, 0.09, 0.1], 0]];
+    [[-0.44, 0.03, 0.23], [0.88, 0.09, 0.1], 0],
+    [[-0.47, -0.02, -0.36], [0.07, 0.19, 0.19], 0], [[0.4, -0.02, -0.36], [0.07, 0.19, 0.19], 0],     // wheels
+    [[-0.47, -0.02, 0.17], [0.07, 0.19, 0.19], 0], [[0.4, -0.02, 0.17], [0.07, 0.19, 0.19], 0]];
   var carts = [], boxes = [];
   // Where a cart rides, as the game works it out (R1, R2): the rail under its feet or at them, and
   // the point on that rail's track line for its x and z. Straight rails only.
@@ -347,7 +387,7 @@ function makeScene3D(host, opt) {
     o = o || {};
     var a = o.alpha == null ? 1 : o.alpha, c = { key: key, a: a, parts: [], hit: null, xray: !!o.xray, visible: false, line: o.line == null ? 0.95 : o.line };
     CART.forEach(function (p) {
-      var ob = add(ident(), p[2] ? key : hex(C.axle, a), { a: a, edge: a < 1 ? null : 'dark', tag: 'cart' });
+      var ob = add(ident(), p[2] ? key : hex(C.axle, a), { a: a, edge: a < 1 ? null : 'dark', tag: 'cart', tex: p[2] ? TILE.cart : null });
       ob.local = p; ob.hidden = true; c.parts.push(ob);
     });
     c.place = function (p) {
@@ -591,13 +631,20 @@ function makeScene3D(host, opt) {
     gl.enableVertexAttribArray(AM.aNrm); gl.vertexAttribPointer(AM.aNrm, 3, gl.FLOAT, false, 24, 12);
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeIB);
     gl.uniformMatrix4fv(AM.uPV, false, PV);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(AM.uTex, 0);
+    gl.uniform3fv(AM.uFog, FOGV); gl.uniform3fv(AM.uFogC, TH.scene.slice(0, 3));
   }
   function mesh(o) {
-    gl.uniformMatrix4fv(AM.uM, false, o.m); gl.uniformMatrix3fv(AM.uN, false, o.nm); gl.uniform4fv(AM.uColor, colOf(o));
+    gl.uniformMatrix4fv(AM.uM, false, o.m); gl.uniformMatrix3fv(AM.uN, false, o.nm); gl.uniform4fv(AM.uColor, colOf(o)); gl.uniform4fv(AM.uTile, o.tile);
     gl.drawElements(gl.TRIANGLES, 36, gl.UNSIGNED_SHORT, 0);
   }
   var curLB = null;
-  function useLines() { gl.useProgram(PL); gl.disableVertexAttribArray(AM.aNrm); gl.uniformMatrix4fv(AL.uPV, false, PV); curLB = null; }
+  function useLines() {
+    gl.useProgram(PL); gl.disableVertexAttribArray(AM.aNrm); gl.uniformMatrix4fv(AL.uPV, false, PV); curLB = null;
+    gl.uniform3fv(AL.uFog, FOGV); gl.uniform3fv(AL.uFogC, TH.scene.slice(0, 3));
+  }
+  // fog from a little past the target to well behind it, so far grid lines and blocks fade out
+  var FOGV = new Float32Array([10, 40, 0]);
   function lines(L, m, col, mode) {
     if (curLB !== L.b) { gl.bindBuffer(gl.ARRAY_BUFFER, L.b); gl.enableVertexAttribArray(AL.aPos); gl.vertexAttribPointer(AL.aPos, 3, gl.FLOAT, false, 12, 0); curLB = L.b; }
     gl.uniformMatrix4fv(AL.uM, false, m); gl.uniform4fv(AL.uColor, col);
@@ -607,6 +654,7 @@ function makeScene3D(host, opt) {
   function draw() {
     if (!measured) return;
     computeCam();
+    FOGV[0] = cam.r * 0.95; FOGV[1] = cam.r * 2.1; FOGV[2] = 0.85;
     gl.viewport(0, 0, canvas.width, canvas.height);
     gl.clearColor(TH.scene[0], TH.scene[1], TH.scene[2], 1);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
@@ -653,6 +701,7 @@ function makeScene3D(host, opt) {
     placeLabels();
   }
   function placeLabels() {
+    var taken = [];
     LABELS.forEach(function (L) {
       if (!show.labels) { L.el.classList.add('hidden'); return; }
       var p = L.p, m = PV;
@@ -664,6 +713,12 @@ function makeScene3D(host, opt) {
       L.el.classList.remove('hidden');
       if (!L.w) L.w = L.el.offsetWidth;
       if (L.cls !== 'compass' && L.w) sx = Math.max(L.w / 2 + 6, Math.min(cssW - L.w / 2 - 6, sx));
+      if (!L.h) L.h = L.el.offsetHeight;
+      if (L.cls !== 'compass') {                          // one that would cover an earlier label waits until there is room
+        var top = /below/.test(L.cls) ? sy + 8 : sy - L.h, r = [sx - L.w / 2 - 3, top - 2, sx + L.w / 2 + 3, top + L.h + 2];
+        if (taken.some(function (q) { return r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1]; })) { L.el.classList.add('hidden'); return; }
+        taken.push(r);
+      }
       L.el.style.transform = 'translate(' + sx.toFixed(1) + 'px,' + sy.toFixed(1) + 'px) translate(-50%,' +
         (L.cls === 'compass' ? '-50%' : /below/.test(L.cls) ? '8px' : '-100%') + ')';
     });
@@ -676,7 +731,7 @@ function makeScene3D(host, opt) {
     onUse: null,
     // drop everything: blocks, entities, paths, labels
     clear: function () {
-      objs.length = 0; picks.length = 0; fitPts.length = 0; carts.length = 0; boxes.length = 0; dots = [];
+      objs.length = 0; picks.length = 0; fitPts.length = 0; carts.length = 0; boxes.length = 0; dots = []; shadows = [];
       byPos = {}; notes = {}; signs = {}; rails = {}; hoverPick = null; setTip(null);
       Object.keys(paths).forEach(function (n) { setPath(n, null); });
       setLabels([]);
@@ -702,6 +757,16 @@ function makeScene3D(host, opt) {
       for (var gz = z0; gz <= z1; gz++) a.push(x0, gy, gz, x1, gy, gz);
       if (LINES.grid) gl.deleteBuffer(LINES.grid.b);
       LINES.grid = lineBuf(a);
+      // a soft shadow on the floor under every block column: a dark square and a fainter, wider one
+      shadows.forEach(function (o) { var i = objs.indexOf(o); if (i >= 0) objs.splice(i, 1); });
+      shadows = [];
+      var cols = {};
+      Object.keys(byPos).forEach(function (k) { var r = byPos[k]; if (/rail$|lever/.test(r.name)) return; cols[r.pos[0] + ',' + r.pos[2]] = r.pos; });
+      Object.keys(cols).forEach(function (k) {
+        var q = cols[k];
+        shadows.push(add(boxM([q[0] - 0.12, gy + 0.001, q[2] - 0.12], [1.24, 0.001, 1.24]), 'shade', { a: 0.05, edge: null, tag: 'shadow' }));
+        shadows.push(add(boxM([q[0] + 0.04, gy + 0.002, q[2] + 0.04], [0.92, 0.001, 0.92]), 'shade', { a: 0.1, edge: null, tag: 'shadow' }));
+      });
       if (fit) fitPts.push([x0, gy, z0], [x1, gy, z1]);
       return [x0, gy, z0, x1, gy, z1];
     },

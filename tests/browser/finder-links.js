@@ -40,7 +40,7 @@ function check(name, ok, detail) { results.push(ok); console.log((ok ? 'PASS ' :
   // a result's link opens that track, with its start, in a fresh page
   await p.locator('#rows tr.r').first().click(); await p.waitForTimeout(1200);
   const listed = await p.evaluate(() => ({ val: document.querySelector('#rows tr.r .yf .mono').textContent, code: document.querySelector('#rows tr.r .code').getAttribute('aria-label') }));
-  await p.click('#rows tr.detail [data-act="link"]'); await p.waitForTimeout(300);
+  await p.click('#rows tr.detail .more-menu summary').then(() => p.click('#rows tr.detail [data-act="link"]')); await p.waitForTimeout(300);
   const link = await p.evaluate(() => navigator.clipboard.readText());
   check('copy link gives a link with the layout', link.indexOf('#') > 0 && /check=/.test(link), link.slice(0, 100));
   const p3 = await ctx.newPage(); p3.on('pageerror', e => errors.push(e.message));

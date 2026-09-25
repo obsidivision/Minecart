@@ -91,7 +91,7 @@ await p.evaluate(sel => document.querySelector(sel).click(), 'input[name="stopAl
   const fs = require('fs'), zlib = require('zlib'), path = await dl.path(), raw = zlib.gunzipSync(fs.readFileSync(path));
   check('download is a gzip NBT file with the launcher described', raw[0] === 10 && /flies off the launch slope/.test(raw.toString('latin1')), raw.length + ' bytes');
   // check at 60 positions
-  await p.click('#rows tr.detail [data-act="verify"]');
+  await p.click('#rows tr.detail .more-menu summary').then(() => p.click('#rows tr.detail [data-act="verify"]'));
   await p.waitForFunction(() => { const v = document.querySelector('#rows tr.detail .verify'); return v && !v.hidden; }, null, { timeout: 120000 });
   const vt = await text('#rows tr.detail .verify');
   check('check at 60 positions: all parked, flight included', /60 of 60<\/b>|60 of 60/.test(vt) && /launched/.test(vt), vt.slice(0, 200));
@@ -108,7 +108,7 @@ await p.evaluate(sel => document.querySelector(sel).click(), 'input[name="stopAl
   check('boat detail: put a boat on the rail', /Put a boat on the rail at/.test(bd.text), '');
   check('boat detail: labels number the boat step', bd.labels.some(t => /^2 Boat/.test(t)) && bd.labels.some(t => /^3 Stops here/.test(t)) && bd.labels.some(t => /^4 Parks here/.test(t)), bd.labels.join(' | '));
 
-  const [td] = await Promise.all([p.waitForEvent('download'), p.click('#rows tr.detail [data-act="tester"]')]);
+  const [td] = await Promise.all([p.waitForEvent('download'), p.click('#rows tr.detail .more-menu summary').then(() => p.click('#rows tr.detail [data-act="tester"]'))]);
   const traw = require('zlib').gunzipSync(require('fs').readFileSync(await td.path())).toString('latin1');
   check('boat tester: summons the boat and the cart', /summon oak_boat/.test(traw) && /summon minecart/.test(traw) && /-fly-small_tip-front\.litematic$/.test(td.suggestedFilename()), td.suggestedFilename());
   const tn = await text('#rows tr.detail .note[data-for]');
