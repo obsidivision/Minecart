@@ -489,6 +489,8 @@
     exactFlights(s);
     $('go').disabled = false; $('stop').disabled = true;
     $('prog').hidden = true;
+    $('rows').classList.remove('arrive'); void $('rows').offsetWidth; $('rows').classList.add('arrive');   // the final list slides in
+    setTimeout(function () { $('rows').classList.remove('arrive'); }, 1400);
     $('status').textContent = s.error ? 'Search failed: ' + s.error : stopped ? 'Stopped.' :
       'Done in ' + s.secs.toFixed(1) + ' s' + (s.mainThread ? ' on one core' : '') + '.';
     renderRows(true);
@@ -562,7 +564,7 @@
     var badge = r.float && st.axis === 'y' ? '<span class="badge fc" title="Inside the floatcart window at this build position">floatcart</span>'
       : r.inside ? '<span class="badge in">' + (st.mode === 'range' ? 'in range' : 'match') + '</span>' : '';
     var parked = r.ok !== false;
-    return '<tr class="r' + (open ? ' open' : '') + '" data-id="' + esc(r.id) + '">' +
+    return '<tr class="r' + (open ? ' open' : '') + '" data-id="' + esc(r.id) + '" style="--i:' + i + '">' +
       '<td class="n">' + (i + 1) + '</td>' +
       '<td class="lay">' + (show === 'start' ? '' : tokensHTML(r.code)) + (show === 'code' ? '' : '<span class="startv">' + esc(startWords(r.v)) + (more ? ' · +' + more + ' more start' + (more === 1 ? '' : 's') : '') + '</span>') + '</td>' +
       (parked ? '<td class="yf"><span class="mono">' + fmtFrac(axisValue(r, st.axis)) + '</span>' + badge + '</td>' +

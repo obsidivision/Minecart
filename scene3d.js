@@ -201,7 +201,8 @@ function makeScene3D(host, opt) {
     goldOff: '#8a7434', iron: '#a7abb0', lit: '#ec3b2a', unlit: '#4f2320', detector: '#7d4f4a', sign: '#dd9b98',
     lever: '#6c6c6c', stick: '#7a5431', axle: '#3b3f44', stand: '#a27b4c', standBase: '#9b9b9b', boat: '#a9743e', boatTrim: '#7d5124'
   };
-  var objs = [], picks = [], byPos = {}, notes = {}, signs = {}, fitPts = [], rails = {}, shadows = [];
+  var objs = [], picks = [], byPos = {}, notes = {}, signs = {}, fitPts = [], rails = {}, railRec = {}, shadows = [];
+  var calm = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);   // no particles or drop-ins
   // col: [r,g,b,a], or a theme key ('run', 'sol', ...) with an alpha; edge: a colour, 'dark', 'glass' or null
   function add(m, col, o) {
     o = o || {};
@@ -295,6 +296,7 @@ function makeScene3D(host, opt) {
       case 'rail': case 'powered_rail': case 'detector_rail': case 'activator_rail':
         rail(rec, x, y, z, pr.shape || 'north_south', name, pr.powered === 'true');
         rails[x + ',' + y + ',' + z] = pr.shape || 'north_south';
+        railRec[x + ',' + y + ',' + z] = rec;
         if (pr.waterlogged === 'true') P([0, 0, 0], [1, 0.889, 1], hex(C.water, 0.2), { edge: hex(C.water, 0.35) });
         break;
       default: P([0, 0, 0], [1, 1, 1], hex('#ff00ff'));
@@ -397,6 +399,12 @@ function makeScene3D(host, opt) {
       c.parts.forEach(function (ob) { ob.hidden = false; setM(ob, chain(at, boxM(ob.local[0], ob.local[1]))); });
       c.hit = boxM([p[0] - HW, p[1], p[2] - HW], [2 * HW, HH, 2 * HW]);
       c.aabb = [p[0] - HW, p[1], p[2] - HW, p[0] + HW, p[1] + HH, p[2] + HW];
+      if (a === 1 && c.last && Math.abs(c.last[0] - p[0]) + Math.abs(c.last[2] - p[2]) > 0.02) {   // redstone sparks off a lit powered rail
+        var ru = railUnder(p[0], p[1], p[2]), rr = ru && railRec[ru.x + ',' + ru.y + ',' + ru.z];
+        if (rr && rr.name === 'powered_rail' && (rr.live === undefined ? rr.pr.powered === 'true' : rr.live) && Math.random() < 0.7)
+          burst([p[0] + (Math.random() - 0.5) * 0.5, p[1] + 0.08, p[2] + (Math.random() - 0.5) * 0.5], { n: 2, col: C.lit, speed: 0.9, up: 1.4, life: 0.55, size: 0.05 });
+      }
+      c.last = p;
       request(); return c;
     };
     c.fit = function () { if (c.aabb) fitPts.push(c.aabb.slice(0, 3), c.aabb.slice(3)); return c; };
@@ -431,6 +439,61 @@ function makeScene3D(host, opt) {
     b.place(p);
     fitPts.push([p[0] - w / 2, p[1], p[2] - w / 2], [p[0] + w / 2, p[1] + BOAT_H, p[2] + w / 2]);
     return b;
+  }
+
+  /* ---------- particles: little cubes thrown out, falling and fading (redstone sparks, dust, a floatcart's burst) ---------- */
+  var parts = [];
+  // o: n, col (hex), speed (sideways, blocks a second), up, life (seconds), size, grav
+  function burst(p, o) {
+    if (calm || !p) return;
+    o = o || {};
+    for (var i = 0; i < (o.n || 12); i++) {
+      var a = Math.random() * Math.PI * 2, sp = (o.speed == null ? 1.5 : o.speed) * (0.4 + Math.random() * 0.6), sz = (o.size || 0.07) * (0.7 + Math.random() * 0.6);
+      var col = hex(o.col || '#8c8577', 1);
+      var ob = add(boxM([p[0], p[1], p[2]], [sz, sz, sz]), col, { edge: null, tag: 'fx' });
+      ob.trans = true;
+      parts.push({ ob: ob, p: p.slice(), v: [Math.cos(a) * sp, (o.up == null ? 2 : o.up) * (0.5 + Math.random() * 0.7), Math.sin(a) * sp],
+                   age: 0, life: (o.life || 0.8) * (0.7 + Math.random() * 0.6), sz: sz, g: o.grav == null ? 6 : o.grav });
+    }
+    request();
+  }
+  function stepParticles(dt) {
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var q = parts[i];
+      q.age += dt;
+      if (q.age >= q.life) { var j = objs.indexOf(q.ob); if (j >= 0) objs.splice(j, 1); parts.splice(i, 1); continue; }
+      q.v[1] -= q.g * dt;
+      for (var k = 0; k < 3; k++) q.p[k] += q.v[k] * dt;
+      var f = 1 - q.age / q.life, s = q.sz * (0.4 + 0.6 * f);
+      q.ob.col[3] = Math.min(1, f * 1.6);
+      setM(q.ob, boxM([q.p[0] - s / 2, q.p[1] - s / 2, q.p[2] - s / 2], [s, s, s]));
+    }
+  }
+  /* ---------- blocks dropping into place, one after another (a new track being built) ---------- */
+  var rising = null;
+  function rise(done) {
+    var recs = Object.keys(byPos).map(function (k) { return byPos[k]; });
+    if (calm || !recs.length) { if (done) done(); return; }
+    recs.sort(function (a, b) { return a.pos[1] - b.pos[1] || (a.pos[0] + a.pos[2]) - (b.pos[0] + b.pos[2]); });
+    var gap = Math.min(45, 1100 / recs.length);
+    rising = { t0: performance.now(), done: done, dur: 320, end: 0,
+               items: recs.map(function (r, i) { return { delay: i * gap, parts: r.parts.map(function (ob) { ob.hidden = true; return { ob: ob, m: ob.m }; }) }; }) };
+    rising.end = (recs.length - 1) * gap + rising.dur;
+    shadows.forEach(function (o) { o.hidden = true; });
+    request();
+  }
+  function stepRise(now) {
+    var R = rising, el = now - R.t0;
+    R.items.forEach(function (it) {
+      var k = Math.max(0, Math.min(1, (el - it.delay) / R.dur));
+      var e = 1 - Math.pow(1 - k, 3), dy = (1 - e) * 1.4;                 // eases down from 1.4 blocks up
+      it.parts.forEach(function (q) { q.ob.hidden = k <= 0; setM(q.ob, chain(T(0, dy, 0), q.m)); });
+    });
+    if (el < R.end) return true;
+    shadows.forEach(function (o) { o.hidden = false; });
+    rising = null;
+    if (R.done) R.done();
+    return false;
   }
 
   /* ---------- paths, tick dots, labels ---------- */
@@ -621,6 +684,8 @@ function makeScene3D(host, opt) {
         if (Math.abs(d) > 1e-4) { cam.target[i] += d * k; moving = true; }
       }
     }
+    if (parts.length) { stepParticles(dt); moving = true; }
+    if (rising && stepRise(now)) moving = true;
     if (dirty || moving) { draw(); dirty = false; }
     if (moving) raf = requestAnimationFrame(loop); else lastT = 0;
   }
@@ -732,7 +797,7 @@ function makeScene3D(host, opt) {
     // drop everything: blocks, entities, paths, labels
     clear: function () {
       objs.length = 0; picks.length = 0; fitPts.length = 0; carts.length = 0; boxes.length = 0; dots = []; shadows = [];
-      byPos = {}; notes = {}; signs = {}; rails = {}; hoverPick = null; setTip(null);
+      byPos = {}; notes = {}; signs = {}; rails = {}; railRec = {}; hoverPick = null; setTip(null); parts = []; rising = null;
       Object.keys(paths).forEach(function (n) { setPath(n, null); });
       setLabels([]);
       if (LINES.grid) { gl.deleteBuffer(LINES.grid.b); LINES.grid = null; }
@@ -796,6 +861,9 @@ function makeScene3D(host, opt) {
     reset: resetView,
     // turn the camera around its target by an angle (radians), for a view that spins by itself
     turn: function (a) { cam.az += a; request(); },
+    // effects: particles at p (see burst), and the blocks dropping into place (done: when they have)
+    burst: burst,
+    rise: rise,
     // the camera now ({target, r, el, az}), or set any of those; and the framing that fits the
     // scene, without moving to it (for a page that glides there itself)
     camera: function (o) {

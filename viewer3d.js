@@ -35,7 +35,14 @@ function makeViewer3D() {
   /* ---------- playback: run holds the cart's position at every tick, in scene coordinates ---------- */
   var ui = { bar: el.querySelector('.gl-play'), play: el.querySelector('.gl-play .play'), tick: el.querySelector('.gl-play input'),
              num: el.querySelector('.gl-play .tickread b'), max: el.querySelector('.gl-play .tickread span') };
-  var run = [], mover = null, boat = null, st = { t: 0, playing: false, played: false }, raf = 0, last = 0;
+  var run = [], mover = null, boat = null, st = { t: 0, playing: false, played: false }, raf = 0, last = 0, floats = false;
+  // the run played to its end: a little dust where the cart stops, and a gold burst for a floatcart
+  function landed() {
+    var p = run[tmax()];
+    if (!p || !S.burst) return;
+    S.burst([p[0], p[1] + 0.1, p[2]], { n: 8, col: '#9a9383', speed: 0.8, up: 1, life: 0.5, size: 0.05 });
+    if (floats) S.burst([p[0], p[1] + 0.5, p[2]], { n: 26, col: '#e8c030', speed: 2, up: 3.2, life: 1.2, size: 0.07, grav: 5 });
+  }
   function tmax() { return Math.max(0, run.length - 1); }
   function posAt(t) {                                          // between ticks, a straight line
     var n = tmax();
@@ -65,7 +72,7 @@ function makeViewer3D() {
     var dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (!st.playing) return;
     st.t = Math.min(tmax(), st.t + dt * 20);
-    if (st.t >= tmax()) { st.playing = false; st.played = true; label(); }
+    if (st.t >= tmax()) { st.playing = false; st.played = true; label(); landed(); }
     show();
     if (st.playing) raf = requestAnimationFrame(frame);
   }
@@ -90,6 +97,7 @@ function makeViewer3D() {
     // takes it aboard (0: it stays there)
     load: function (d) {
       setPlaying(false);
+      floats = !!(d.cart && (function (top) { var b = Math.floor(top); return top > b && top - 0.000009999999747378752 < b; })(d.cart[1] + HH));
       var off = [Infinity, Infinity, Infinity];
       d.blocks.forEach(function (b) { off[0] = Math.min(off[0], b.x); off[1] = Math.min(off[1], b.y); off[2] = Math.min(off[2], b.z); });
       function rel(p, dy) { return [p[0] - off[0], p[1] - off[1] + (dy || 0), p[2] - off[2]]; }

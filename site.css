@@ -773,3 +773,14 @@ footer.site-foot { border-top: 2px solid var(--fg); padding: 28px 0 44px; }
 .foot .colophon dd span { color: var(--fg-3); font-weight: 400; margin-left: 6px; }
 .foot .legal { font-size: 13px; color: var(--fg-3); max-width: 60ch; }
 @media (max-width: 760px) { .foot { grid-template-columns: minmax(0, 1fr); } .foot .colophon dd span { display: block; margin-left: 0; } }
+
+/* small moments: the final results slide in, a floatcart's badge shines, the meter flashes on a hit */
+@keyframes rowIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+#rows.arrive > tr.r { animation: rowIn .35s cubic-bezier(.2, .7, .2, 1) both; animation-delay: calc(min(var(--i, 0), 14) * 35ms); }
+@keyframes shine { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 40% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 45%, transparent); } }
+#rows.arrive .badge.fc { animation: shine 1.1s ease .3s both; }
+@keyframes hit { 0% { transform: scaleY(1); } 30% { transform: scaleY(1.5); } 100% { transform: scaleY(1); } }
+@keyframes glow { 0% { background: color-mix(in srgb, var(--gold) 22%, transparent); } 30% { background: color-mix(in srgb, var(--gold) 60%, transparent); } 100% { background: color-mix(in srgb, var(--gold) 22%, transparent); } }
+.meter.hit .meter-mk { animation: hit .6s ease; transform-origin: bottom; }
+.meter.hit .meter-win { animation: glow .9s ease; }
+@media (prefers-reduced-motion: reduce) { #rows.arrive > tr.r, #rows.arrive .badge.fc, .meter.hit .meter-mk, .meter.hit .meter-win { animation: none; } }

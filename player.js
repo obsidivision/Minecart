@@ -88,13 +88,22 @@ function makePlayer(cfg) {
     ui.play.setAttribute('aria-label', st.playing ? 'Pause' : end ? 'Replay' : 'Play');
     ui.play.title = st.playing ? 'Pause (space)' : end ? 'Replay (space)' : 'Play (space)';
   }
+  // the run played to its end: dust where the cart stops; inside the window, a gold burst and the meter flashes
+  function landed() {
+    var r = R(), inside = r.yfrac > D.window[0] && r.yfrac < D.window[1], p = cartAt(tmax());
+    if (S && S.burst) {
+      S.burst([p[0], p[1] + 0.1, p[2]], { n: 8, col: '#9a9383', speed: 0.8, up: 1, life: 0.5, size: 0.05 });
+      if (inside) S.burst([p[0], p[1] + 0.5, p[2]], { n: 26, col: '#e8c030', speed: 2, up: 3.2, life: 1.2, size: 0.07, grav: 5 });
+    }
+    ui.meter.classList.remove('hit'); void ui.meter.offsetWidth; if (inside) ui.meter.classList.add('hit');
+  }
   var raf = 0, last = 0;
   function frame(now) {
     raf = 0;
     var dt = Math.min(0.1, (now - last) / 1000); last = now;
     if (!st.playing) return;
     st.t += dt * 20 * st.speed;
-    if (st.t >= tmax()) { st.t = tmax(); st.playing = false; label(); }
+    if (st.t >= tmax()) { st.t = tmax(); st.playing = false; label(); landed(); }
     refresh(false);
     if (st.playing) raf = requestAnimationFrame(frame);
   }
