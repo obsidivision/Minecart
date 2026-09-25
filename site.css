@@ -712,12 +712,23 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
 .index span { color: var(--fg-3); font-size: 14px; }
 .index a:hover b { color: var(--brand-text); }
 .home footer.site-foot { margin-top: 24px; }
+/* the live readout above the plate: the cart's height as it runs, and how many tracks have gone by */
+.readout {
+  position: absolute; left: max(24px, calc((100vw - 1200px) / 2 + 24px)); top: 36px; z-index: 1; width: min(420px, calc(100% - 48px));
+  display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 2px 12px; pointer-events: none;
+}
+.readout .k { grid-column: 1 / -1; font: 600 11px var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--fg-3); }
+.readout #ry { grid-column: 1 / -1; font-size: 34px; font-weight: 600; letter-spacing: -0.02em; color: var(--fg); font-variant-numeric: tabular-nums; transition: color .3s; }
+.readout.fc #ry { color: var(--brand-text); }
+.readout canvas { grid-column: 1 / -1; width: 100%; height: 96px; margin-top: 10px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.readout .tally { grid-column: 1 / -1; margin-top: 6px; font-size: 12px; color: var(--fg-3); }
 @media (max-width: 760px) {
   .stage-full { height: auto; min-height: 0; }
   .stage-full .hero-stage { position: relative; height: 56vh; min-height: 300px; }
   .plate { position: static; width: auto; margin: 0; border-width: 0; border-top: 2px solid var(--fg); }
   .plate h1 { font-size: 42px; }
   .hero-now { top: 10px; right: 10px; left: 10px; }
+  .readout { display: none; }
   .index { grid-template-columns: 1fr; }
   .index li:nth-child(odd) { border-right: 0; }
   .index li:nth-child(even) a { padding-left: 0; }
@@ -784,3 +795,4 @@ footer.site-foot { border-top: 2px solid var(--fg); padding: 28px 0 44px; }
 .meter.hit .meter-mk { animation: hit .6s ease; transform-origin: bottom; }
 .meter.hit .meter-win { animation: glow .9s ease; }
 @media (prefers-reduced-motion: reduce) { #rows.arrive > tr.r, #rows.arrive .badge.fc, .meter.hit .meter-mk, .meter.hit .meter-win { animation: none; } }
+@media (max-height: 720px) { .readout { display: none; } }   /* too short: it would run into the plate */

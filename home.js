@@ -6,6 +6,7 @@
 (function () {
   'use strict';
   var host = document.getElementById('stage'), now = document.getElementById('now');
+  var ro = document.getElementById('readout'), ry = document.getElementById('ry'), graph = document.getElementById('rgraph'), tally = document.getElementById('tally');
   if (!host || typeof makeEngine !== 'function' || typeof makeScene3D !== 'function') return;
   var E = makeEngine(), S = null;
   try { S = makeScene3D(host, { view: { az: 0.9, el: 0.42 } }); } catch (e) { S = null; }
@@ -40,6 +41,40 @@
     return { code: c, facing: 'south', origin: o, opt: null, r: E.run(c, o, 'south', true, 3000), b: E.build(c, o, 'south') };
   }
 
+  // the readout: the cart's y as it goes, its height over the run, and a count of tracks seen
+  var runs = 0, floats = 0, gy = null;
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function drawGraph() {
+    if (!graph || !gy || !graph.offsetWidth) return;
+    var d = window.devicePixelRatio || 1, w = graph.offsetWidth, h = graph.offsetHeight;
+    if (graph.width !== Math.round(w * d) || graph.height !== Math.round(h * d)) { graph.width = Math.round(w * d); graph.height = Math.round(h * d); }
+    var g = graph.getContext('2d'), n = gy.length - 1, lo = Infinity, hi = -Infinity;
+    gy.forEach(function (y) { lo = Math.min(lo, y); hi = Math.max(hi, y); });
+    if (hi - lo < 1) { hi = (hi + lo) / 2 + 0.5; lo = hi - 1; }
+    function X(i) { return (4 + (w - 8) * i / Math.max(1, n)) * d; }
+    function Y(y) { return (6 + (h - 12) * (hi - y) / (hi - lo)) * d; }
+    g.clearRect(0, 0, graph.width, graph.height);
+    g.lineWidth = 1.5 * d; g.lineJoin = 'round';
+    g.strokeStyle = css('--line'); g.beginPath();
+    gy.forEach(function (y, i) { g[i ? 'lineTo' : 'moveTo'](X(i), Y(y)); }); g.stroke();
+    var upto = Math.min(n, t), k = Math.floor(upto);
+    g.strokeStyle = css('--brand-text'); g.beginPath();
+    for (var i = 0; i <= k; i++) g[i ? 'lineTo' : 'moveTo'](X(i), Y(gy[i]));
+    var yt = k < n ? gy[k] + (gy[k + 1] - gy[k]) * (upto - k) : gy[n];
+    g.lineTo(X(upto), Y(yt)); g.stroke();
+    g.fillStyle = css('--brand-text'); g.beginPath(); g.arc(X(upto), Y(yt), 3 * d, 0, 7); g.fill();
+    return yt;
+  }
+  function readout(parked) {
+    if (!ro || !gy) return;
+    var y = drawGraph();
+    if (y == null) y = gy[Math.min(gy.length - 1, Math.floor(t))];
+    ry.textContent = parked ? cur.r.y.toFixed(10) : y.toFixed(4);
+    ro.classList.toggle('fc', !!parked && E.isFloatcart(cur.r.y));
+    tally.textContent = runs + (runs === 1 ? ' track' : ' tracks') + ' \u00b7 ' + floats + (floats === 1 ? ' floatcart' : ' floatcarts');
+  }
+  if (ro) ro.hidden = false;
+
   var built = false, cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, shown = -1;
   var glide = null, GLIDE = 1.6, fading = false, FADE = 450;   // ms the view takes to fade out, and back in
   S.canvas.style.transition = 'opacity ' + FADE + 'ms ease';                          // the camera easing from one framing to the next (seconds)
@@ -52,6 +87,7 @@
     S.clear();
     S.blocks(tr.b.blocks, { offset: off });
     run = tr.r.path.map(function (p) { return rel(p); });
+    gy = tr.r.path.map(function (p) { return p[1]; });
     split = 0;                                             // ticks before the cart is on the track (a launch)
     while (split < tr.r.path.length && tr.r.path[split][3] < 0) split++;
     var La = tr.b.launcher;
@@ -77,6 +113,7 @@
     t = 0; hold = 0; shown = -1; built = false;
     place();
     caption(false);
+    readout(false);
     mover.place(null);                                     // the cart appears once its rails are down
     S.rise(function () { built = true; place(); });        // the blocks drop into place, then the cart goes
   }
@@ -134,10 +171,12 @@
       var t0 = t;
       t = Math.min(n, t + dt * 20 * SPEED);
       place();
+      readout(false);
       var land = cur.r.landTick;
       if (land && t0 < land && t >= land) S.burst(posAt(land), { n: 10, col: '#9a9383', speed: 1.2, up: 1.2, life: 0.6, size: 0.06 });   // dust as it lands
       if (t >= n) {
-        caption(true);
+        runs++; if (E.isFloatcart(cur.r.y)) floats++;
+        caption(true); readout(true);
         var p = posAt(n);
         S.burst([p[0], p[1] + 0.1, p[2]], { n: 8, col: '#9a9383', speed: 0.8, up: 1, life: 0.5, size: 0.05 });
         if (E.isFloatcart(cur.r.y)) S.burst([p[0], p[1] + 0.5, p[2]], { n: 26, col: '#e8c030', speed: 2, up: 3.2, life: 1.2, size: 0.07, grav: 5 });   // a floatcart: gold
