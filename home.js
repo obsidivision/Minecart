@@ -78,7 +78,7 @@
   function fitReadout() {
     if (!ro || !plate) return;
     ro.style.bottom = (plate.offsetHeight + 32 + 24) + 'px';
-    ro.classList.toggle('flat', graph.offsetHeight < 40);
+    ro.classList.toggle('flat', graph.offsetHeight < 28);
     readout(cur && t >= run.length - 1);
   }
   if (ro) { ro.hidden = false; window.addEventListener('resize', fitReadout); }
