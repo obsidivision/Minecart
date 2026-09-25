@@ -40,7 +40,7 @@
     return { code: c, facing: 'south', origin: o, opt: null, r: E.run(c, o, 'south', true, 3000), b: E.build(c, o, 'south') };
   }
 
-  var cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, shown = -1;
+  var built = false, cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, shown = -1;
   var glide = null, GLIDE = 1.6, fading = false, FADE = 450;   // ms the view takes to fade out, and back in
   S.canvas.style.transition = 'opacity ' + FADE + 'ms ease';                          // the camera easing from one framing to the next (seconds)
   function ease(x) { return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; }
@@ -74,9 +74,11 @@
     var to = S.fitted();
     if (!cur.first && to) glide = { from: S.camera(), to: to, t: 0 };   // glide there, still turning
     else { S.frame(true); glide = null; }
-    t = 0; hold = 0; shown = -1;
+    t = 0; hold = 0; shown = -1; built = false;
     place();
     caption(false);
+    mover.place(null);                                     // the cart appears once its rails are down
+    S.rise(function () { built = true; place(); });        // the blocks drop into place, then the cart goes
   }
   function posAt(t) {
     var n = run.length - 1;
@@ -128,10 +130,18 @@
       if (glide.t >= 1) glide = null;
     }
     var n = run.length - 1;
-    if (t < n) {
+    if (t < n && built) {
+      var t0 = t;
       t = Math.min(n, t + dt * 20 * SPEED);
       place();
-      if (t >= n) caption(true);
+      var land = cur.r.landTick;
+      if (land && t0 < land && t >= land) S.burst(posAt(land), { n: 10, col: '#9a9383', speed: 1.2, up: 1.2, life: 0.6, size: 0.06 });   // dust as it lands
+      if (t >= n) {
+        caption(true);
+        var p = posAt(n);
+        S.burst([p[0], p[1] + 0.1, p[2]], { n: 8, col: '#9a9383', speed: 0.8, up: 1, life: 0.5, size: 0.05 });
+        if (E.isFloatcart(cur.r.y)) S.burst([p[0], p[1] + 0.5, p[2]], { n: 26, col: '#e8c030', speed: 2, up: 3.2, life: 1.2, size: 0.07, grav: 5 });   // a floatcart: gold
+      }
     } else if ((hold += dt) >= HOLD && !fading) {            // fade out, swap in the next track, fade back in
       fading = true;
       S.canvas.style.opacity = '0';
