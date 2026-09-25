@@ -73,7 +73,15 @@
     ro.classList.toggle('fc', !!parked && E.isFloatcart(cur.r.y));
     tally.textContent = runs + (runs === 1 ? ' track' : ' tracks') + ' \u00b7 ' + floats + (floats === 1 ? ' floatcart' : ' floatcarts');
   }
-  if (ro) ro.hidden = false;
+  // keep the readout clear of the plate, whatever the plate's height; drop the line when it would be a sliver
+  var plate = document.querySelector('.plate');
+  function fitReadout() {
+    if (!ro || !plate) return;
+    ro.style.bottom = (plate.offsetHeight + 32 + 24) + 'px';
+    ro.classList.toggle('flat', graph.offsetHeight < 40);
+    readout(cur && t >= run.length - 1);
+  }
+  if (ro) { ro.hidden = false; window.addEventListener('resize', fitReadout); }
 
   var built = false, cur = null, run = [], split = 0, mover = null, boat = null, t = 0, hold = 0, shown = -1;
   var glide = null, GLIDE = 1.6, fading = false, FADE = 450;   // ms the view takes to fade out, and back in
@@ -193,5 +201,7 @@
     requestAnimationFrame(frame);
   }
   show(randomTrack(), true);
+  fitReadout();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitReadout);
   requestAnimationFrame(frame);
 })();
