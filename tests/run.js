@@ -8,7 +8,7 @@ function run(file, args) {
   const r = spawnSync(process.execPath, [file].concat(args || []), { stdio: 'inherit', cwd: ROOT });
   if (r.status !== 0) failed++;
 }
-['engine', 'launch', 'flight', 'tester'].forEach(n => run(path.join(__dirname, n + '.test.js')));
+['engine', 'launch', 'flight', 'tester', 'contrast'].forEach(n => run(path.join(__dirname, n + '.test.js')));
 if (process.argv.includes('--browser')) {
   // the site as a plain static server, like any web host
   const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.woff2': 'font/woff2', '.svg': 'image/svg+xml' };

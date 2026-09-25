@@ -13,8 +13,8 @@
   --bg: #e9e7df; --bg-2: #f7f6f1; --bg-3: #dedbd1;
   --card: #f7f6f1; --field: #ffffff;
   --line: #cfcbbf; --line-2: #1d1c19;
-  --fg: #1d1c19; --fg-2: #45433d; --fg-3: #6e6b62;
-  --brand: #b8321f; --brand-fg: #ffffff; --brand-hl: rgba(184, 50, 31, .1);
+  --fg: #1d1c19; --fg-2: #45433d; --fg-3: #5c5950;
+  --brand: #b8321f; --brand-text: #b8321f; --brand-fg: #ffffff; --brand-hl: rgba(184, 50, 31, .1);
   --brand-grad: #b8321f;
   --card-grad: #f7f6f1;
   --page-grad: none;
@@ -41,8 +41,8 @@
     --bg: #191816; --bg-2: #22211e; --bg-3: #2c2a26;
     --card: #22211e; --field: #141311;
     --line: #393631; --line-2: #8c877c;
-    --fg: #ebe7db; --fg-2: #c3beb1; --fg-3: #948f84;
-    --brand: #e0513a; --brand-fg: #ffffff; --brand-hl: rgba(224, 81, 58, .14);
+    --fg: #ebe7db; --fg-2: #c3beb1; --fg-3: #a19c91;
+    --brand: #c23f29; --brand-text: #f08a73; --brand-fg: #ffffff; --brand-hl: rgba(224, 81, 58, .14);
     --brand-grad: #e0513a;
     --card-grad: #22211e;
     --page-grad: none;
@@ -62,8 +62,8 @@
   --bg: #191816; --bg-2: #22211e; --bg-3: #2c2a26;
   --card: #22211e; --field: #141311;
   --line: #393631; --line-2: #8c877c;
-  --fg: #ebe7db; --fg-2: #c3beb1; --fg-3: #948f84;
-  --brand: #e0513a; --brand-fg: #ffffff; --brand-hl: rgba(224, 81, 58, .14);
+  --fg: #ebe7db; --fg-2: #c3beb1; --fg-3: #a19c91;
+  --brand: #c23f29; --brand-text: #f08a73; --brand-fg: #ffffff; --brand-hl: rgba(224, 81, 58, .14);
   --brand-grad: #e0513a;
   --card-grad: #22211e;
   --page-grad: none;
@@ -618,7 +618,9 @@ footer.site-foot strong { color: var(--fg-2); }
 
 /* ---------- the look: flat surfaces, ink rules, serif headings ----------
    Placed last so it restyles the shared parts above without touching their layout. */
-:root { --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, "Times New Roman", serif; }
+/* the headings' serif ships with the site (fonts/, SIL Open Font License), so it looks the same everywhere */
+@font-face { font-family: "Source Serif 4"; src: url("fonts/source-serif-4-700.woff2") format("woff2"); font-weight: 700; font-style: normal; font-display: swap; }
+:root { --serif: "Source Serif 4", Georgia, "Times New Roman", serif; }
 h1, h2 { font-family: var(--serif); font-weight: 700; letter-spacing: -0.01em; }
 h3 { font-weight: 650; }
 header.site { padding: 36px 0 22px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
@@ -627,7 +629,7 @@ header.site.compact { border-bottom: 0; margin-bottom: 0; }
 
 .topbar { background: var(--bg); border-bottom: 2px solid var(--fg); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .wordmark { font-family: var(--serif); font-size: 19px; font-weight: 700; letter-spacing: 0; }
-.wordmark svg { color: var(--brand); }
+.wordmark svg { color: var(--brand-text); }
 .topbar nav a { font-size: 14px; color: var(--fg-2); }
 .topbar nav a[aria-current="page"] { color: var(--fg); font-weight: 650; }
 .topbar nav a[aria-current="page"]::after { left: 10px; right: 10px; bottom: -2px; height: 3px; border-radius: 0; background: var(--brand); }
@@ -648,7 +650,7 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .seg input:checked + span, :root:not([data-theme="light"]) .seg button[aria-selected="true"] { background: var(--fg); color: var(--bg); }
 }
-.badge.fc { color: var(--brand); background: var(--brand-hl); border-radius: 2px; }
+.badge.fc { color: var(--brand-text); background: var(--brand-hl); border-radius: 2px; }
 .badge { border-radius: 2px; }
 .intro-empty { border-radius: var(--r-card); background: var(--card); border: 1px solid var(--line); }
 .intro-empty li::before { border-radius: 2px; background: var(--fg); color: var(--bg); box-shadow: none; }
@@ -677,14 +679,14 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
 .hero-now:empty { display: none; }
 .hero-now .mono { color: var(--fg); font-weight: 600; }
 .hero-now .res b { color: var(--fg); }
-.hero-now .open { color: var(--brand); font-weight: 600; text-decoration: none; }
+.hero-now .open { color: var(--brand-text); font-weight: 600; text-decoration: none; }
 .hero-now .open:hover { text-decoration: underline; }
 .plate {
   position: absolute; left: max(24px, calc((100vw - 1200px) / 2 + 24px)); bottom: 32px; z-index: 1; width: min(420px, calc(100% - 48px));
   padding: 22px 24px 20px; background: var(--card); border: 2px solid var(--fg); border-radius: 2px;
 }
 .plate h1 { font-family: var(--serif); font-size: 52px; line-height: 1; letter-spacing: -0.02em; }
-.plate h1 i { font-style: normal; color: var(--brand); }
+.plate h1 i { font-style: normal; color: var(--brand-text); }
 .plate .btn.primary { margin-top: 18px; height: 42px; padding: 0 18px; font-size: 15px; }
 .colophon { margin: 18px 0 0; padding-top: 12px; border-top: 1px solid var(--line); display: grid; grid-template-columns: auto 1fr; gap: 3px 14px; font-size: 13px; }
 .colophon dt { color: var(--fg-3); }
@@ -694,10 +696,10 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
 .index li:nth-child(odd) { border-right: 1px solid var(--line); }
 .index a { display: grid; grid-template-columns: 44px 1fr; align-items: baseline; gap: 4px 0; padding: 22px 24px 22px 0; text-decoration: none; }
 .index li:nth-child(even) a { padding-left: 24px; }
-.index a::before { content: counter(pg, decimal-leading-zero); grid-row: span 2; font: 600 13px var(--mono); color: var(--brand); }
+.index a::before { content: counter(pg, decimal-leading-zero); grid-row: span 2; font: 600 13px var(--mono); color: var(--brand-text); }
 .index b { font-family: var(--serif); font-size: 22px; font-weight: 700; }
 .index span { color: var(--fg-3); font-size: 14px; }
-.index a:hover b { color: var(--brand); }
+.index a:hover b { color: var(--brand-text); }
 .home footer.site-foot { margin-top: 24px; }
 @media (max-width: 760px) {
   .stage-full { height: auto; min-height: 0; }
@@ -708,6 +710,11 @@ input[type="text"], input[type="search"], select { border-radius: var(--r-ctl); 
   .index { grid-template-columns: 1fr; }
   .index li:nth-child(odd) { border-right: 0; }
   .index li:nth-child(even) a { padding-left: 0; }
+}
+@media (max-width: 640px) {
+  .build table { min-width: 540px; font-size: 12.5px; }     /* the build list scrolls sideways in its box instead of squeezing */
+  .build td, .build th { padding: 6px 9px; }
+  .res > tbody > tr.r > td.n { align-self: flex-start; padding-top: 3px; }
 }
 @media (min-width: 761px) {
   .stage-full .hero-stage { left: min(34%, 480px); }         /* the build turns clear of the plate */
