@@ -6,14 +6,14 @@
 <title>Floatcart simulator rules · Minecraft Java 26.2</title>
 <meta name="description" content="The Minecraft rules behind the floatcart simulator (Java 26.2): minecart physics, powered rails, collisions, honey, water and the piston tester.">
 <meta name="color-scheme" content="light dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2016%2016%22%20shape-rendering=%22crispEdges%22%3E%3Crect%20width=%2216%22%20height=%2216%22%20fill=%22%231d1c19%22/%3E%3Cpath%20d=%22M1%203h14v2h-1v4h-1v1H3V9H2V5H1z%22%20fill=%22%23e9e7df%22/%3E%3Cpath%20d=%22M3%2010h3v3H3zM10%2010h3v3h-3z%22%20fill=%22%23d44a33%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="stylesheet" href="site.css">
 </head>
 <body>
 <div class="topbar">
   <div class="wrap bar">
-    <a class="wordmark" href="index.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <a class="wordmark" href="index.html"><svg viewBox="0 0 16 12" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M1 1h14v2h-1v4h-1v1H3V7H2V3H1z" fill="currentColor"/><path d="M4 3h8v1H4z" fill="currentColor" opacity=".35"/><path d="M3 8h3v3H3zM10 8h3v3h-3z" fill="#c23f29"/></svg><span>floatcart</span></a>
     <nav aria-label="Pages"><a href="floatcart-3d.html">Challenge</a><a href="floatcart-makers-3d.html">Makers</a><a href="floatcart-finder.html">Finder</a><a href="floatcart-simulator-rules.html" aria-current="page">Rules</a></nav>
     <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </div>
@@ -22,7 +22,7 @@
 <header class="site">
   <h1>Simulator rules</h1>
   <p class="sub">The rules the simulator follows, taken from the game's code.</p>
-  <p class="meta">68 rules in 9 topics. A <a href="#X3">floatcart</a> is a minecart whose top is less than 0.00001 above a block edge.</p>
+  <p class="meta">71 rules in 9 topics. A <a href="#X3">floatcart</a> is a minecart whose top is less than 0.00001 above a block edge.</p>
 </header>
   <div class="rules">
     <aside class="side" aria-label="Search and topics">
@@ -36,14 +36,14 @@
         <li><a href="#topic-M" class="t-M" data-topic="M"><span class="dot"></span>Minecart basics<span class="n">8</span></a></li>
         <li><a href="#topic-R" class="t-R" data-topic="R"><span class="dot"></span>Riding the rails<span class="n">11</span></a></li>
         <li><a href="#topic-P" class="t-P" data-topic="P"><span class="dot"></span>Powered rails<span class="n">6</span></a></li>
-        <li><a href="#topic-F" class="t-F" data-topic="F"><span class="dot"></span>Off the rails<span class="n">3</span></a></li>
-        <li><a href="#topic-C" class="t-C" data-topic="C"><span class="dot"></span>Collisions<span class="n">14</span></a></li>
+        <li><a href="#topic-F" class="t-F" data-topic="F"><span class="dot"></span>Off the rails<span class="n">5</span></a></li>
+        <li><a href="#topic-C" class="t-C" data-topic="C"><span class="dot"></span>Collisions<span class="n">15</span></a></li>
         <li><a href="#topic-H" class="t-H" data-topic="H"><span class="dot"></span>Honey<span class="n">2</span></a></li>
         <li><a href="#topic-W" class="t-W" data-topic="W"><span class="dot"></span>Water<span class="n">7</span></a></li>
         <li><a href="#topic-T" class="t-T" data-topic="T"><span class="dot"></span>The tester<span class="n">13</span></a></li>
         <li><a href="#topic-X" class="t-X" data-topic="X"><span class="dot"></span>Exact numbers<span class="n">4</span></a></li>
       </ul>
-      <div class="side-foot"><span id="status" aria-live="polite">68 rules</span><button type="button" class="btn ghost sm" id="expand" aria-pressed="false">Expand all</button></div>
+      <div class="side-foot"><span id="status" aria-live="polite">71 rules</span><button type="button" class="btn ghost sm" id="expand" aria-pressed="false">Expand all</button></div>
     </aside>
     <main>
     <section class="topic t-M" id="topic-M" data-topic="M" aria-labelledby="h-M">
@@ -259,7 +259,7 @@
       </article>
     </section>
     <section class="topic t-F" id="topic-F" data-topic="F" aria-labelledby="h-F">
-      <div class="topic-head"><span class="dot"></span><h2 id="h-F">Off the rails</h2><span class="n">3</span></div>
+      <div class="topic-head"><span class="dot"></span><h2 id="h-F">Off the rails</h2><span class="n">5</span></div>
       <p class="blurb">What happens once the cart leaves the rails.</p>
       <article class="rule" id="F1">
         <a class="rid" href="#F1" aria-label="Link to rule F1">F1</a>
@@ -285,9 +285,25 @@
           <details class="more"><summary>Full rule</summary><div class="full"><p>After moving, a cart that is not on the ground keeps 95% of its speed.</p></div></details>
         </div>
       </article>
+      <article class="rule" id="F4">
+        <a class="rid" href="#F4" aria-label="Link to rule F4">F4</a>
+        <div>
+          <h3>Stopping in mid-air</h3>
+          <p class="summary">A flying cart that hits a block stops dead in that direction, then falls straight down.</p>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>When a move is cut short by a block face, the blocked axis loses all its speed (<a href="#C5">C5</a>). A cart flying level into a stopper keeps no speed toward it, so it falls straight down from the spot it stopped at, a hitbox half-width from the face. The launcher uses this: the stopper sets exactly where the cart comes to rest.</p></div></details>
+        </div>
+      </article>
+      <article class="rule" id="F5">
+        <a class="rid" href="#F5" aria-label="Link to rule F5">F5</a>
+        <div>
+          <h3>Landing on a rail</h3>
+          <p class="summary">A falling cart rides the rail as soon as its feet reach the rail's block.</p>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>Each tick the rail lookup (<a href="#M6">M6</a>) runs first. Once the falling cart's feet are inside a rail's block, or the block just above it, that tick is a rail tick: its vertical speed is dropped (<a href="#R8">R8</a>) and it is put on the track height (<a href="#R10">R10</a>). A cart dropped onto the start rail lands there at rest, at the fraction the stopper gave it.</p></div></details>
+        </div>
+      </article>
     </section>
     <section class="topic t-C" id="topic-C" data-topic="C" aria-labelledby="h-C">
-      <div class="topic-head"><span class="dot"></span><h2 id="h-C">Collisions and block shapes</h2><span class="n">14</span></div>
+      <div class="topic-head"><span class="dot"></span><h2 id="h-C">Collisions and block shapes</h2><span class="n">15</span></div>
       <p class="blurb">Hitboxes, block shapes and how collisions are resolved.</p>
       <article class="rule" id="C1">
         <a class="rid" href="#C1" aria-label="Link to rule C1">C1</a>
@@ -399,6 +415,14 @@
           <h3>Other entities</h3>
           <p class="summary">Entities are solid for the cart too: a boat waiting on the track stops it, until the cart picks it up.</p>
           <details class="more"><summary>Full rule</summary><div class="full"><p>Their hitboxes are colliders too. getEntityCollisions takes the entities whose box intersects the swept box grown by 1e-7 and whose canCollideWith passes; for a minecart that is canVehicleCollide, which holds for anything solid or pushable but never for what it is carrying.</p></div></details>
+        </div>
+      </article>
+      <article class="rule" id="C15">
+        <a class="rid" href="#C15" aria-label="Link to rule C15">C15</a>
+        <div>
+          <h3>Picking up a boat</h3>
+          <p class="summary">A cart moving faster than 0.1 per tick picks up a boat within 0.2 blocks.</p>
+          <details class="more"><summary>Full rule</summary><div class="full"><p>At the end of its tick, a minecart moving faster than 0.1 block/tick horizontally takes aboard the first boat (or mob) whose box it touches when its own box is grown by 0.2 sideways. From then on it carries it: 75% moves (<a href="#R6">R6</a>) and 99.7% rail friction (<a href="#R8">R8</a>). Until then the boat is solid (<a href="#C14">C14</a>); on the launcher the cart reaches it coming down a slope, so it never runs into its side.</p></div></details>
         </div>
       </article>
     </section>
@@ -631,9 +655,15 @@
   </div>
 </div>
 <footer class="site-foot">
-  <div class="wrap">
-    <p><strong>07km</strong> &mdash; solution, search, schematics. Claude for visualization.</p>
-    <p>Build: &ldquo;vertical floatcart challenge&rdquo; by FarCoolHat. Java Edition 26.2, classic minecart engine. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</p>
+  <div class="wrap foot">
+    <dl class="colophon">
+      <dt>Created by</dt><dd>07km <span>solution, search, schematics</span></dd>
+      <dt>Powered by</dt><dd>Java Projectile Tech</dd>
+      <dt>Funded by</dt><dd>Cosmos</dd>
+      <dt>Build</dt><dd>FarCoolHat <span>vertical floatcart challenge</span></dd>
+      <dt>Visuals</dt><dd>Claude</dd>
+    </dl>
+    <p class="legal">Java Edition 26.2, classic minecart engine. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</p>
   </div>
 </footer>
 <script src="site.js"></script>

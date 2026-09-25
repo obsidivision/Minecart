@@ -1,0 +1,12 @@
+{
+  "name": "floatcart",
+  "private": true,
+  "description": "Minecart simulator pages. The site itself needs no build or dependencies; this file is only for the tests.",
+  "scripts": {
+    "test": "node tests/run.js",
+    "test:browser": "node tests/run.js --browser"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}

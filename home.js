@@ -1,5 +1,5 @@
 /* home.js — the homepage's live view: random straight tracks, built and run one after another
-   with the finder's engine (makeEngine, from floatcart-finder.js), while the camera turns.
+   with the finder's engine (makeEngine, from engine.js), while the camera turns.
    Each track is picked at random (start, rails, direction, and sometimes a launcher, with or
    without a boat); a track the cart doesn't park on is thrown away before it is shown. When the
    cart parks, the view holds a moment and the next track takes its place. */
@@ -64,7 +64,8 @@
       for (var k = 0; k < 3; k++) { lo[k] = Math.min(lo[k], p[k]); hi[k] = Math.max(hi[k], p[k] + 1); }
     });
     var cx = (lo[0] + hi[0]) / 2, cz = (lo[2] + hi[2]) / 2, rad = Math.hypot(hi[0] - lo[0], hi[2] - lo[2]) / 2 + 0.5;
-    S.grid([cx - rad, lo[1], cz - rad, cx + rad, hi[1], cz + rad], 0, false);
+    var gr = rad * 2.6;                                     // wide: the fog fades it out toward a horizon
+    S.grid([cx - gr, lo[1], cz - gr, cx + gr, hi[1], cz + gr], 0, false);
     for (var a = 0; a < 16; a++) {
       var x = cx + rad * Math.cos(a * Math.PI / 8), z = cz + rad * Math.sin(a * Math.PI / 8);
       S.fitPoint([x, lo[1], z]); S.fitPoint([x, hi[1], z]);
@@ -95,13 +96,23 @@
     }
   }
   function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; }); }
+  // the finder, opened on this track: its layout checked, with its start and direction
+  function finderLink() {
+    var o = cur.opt, r = cur.r, q = { axis: 'y', mode: 'value', target: (r.y - Math.floor(r.y)).toFixed(10), tol: '0.000005',
+      px: 0, py: 64, pz: 0, facing: cur.facing, cart: o && o.boat ? 'boat' : 'empty', how: o ? o.how : 'hand', check: cur.code };
+    if (o) { q.stopAll = 'one'; q.stopper = o.stopper; q.approach = o.approach; }
+    return 'floatcart-finder.html#' + Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
+  }
+  host.style.cursor = 'pointer';
+  host.title = 'Open this track in the finder';
+  host.addEventListener('click', function () { if (cur) location.href = finderLink(); });
   function caption(parked) {
     if (!now) return;
     var o = cur.opt, r = cur.r, y = r.y - Math.floor(r.y);
     var how = !o ? 'placed by hand' : 'launched' + (o.boat ? ' with a boat' : '');
     now.innerHTML = '<span class="mono">' + esc(cur.code) + '</span><span class="how">' + how + ', running ' + cur.facing + '</span>' +
       (parked ? '<span class="res">parked at y <b class="mono">' + y.toFixed(10) + '</b>' + (E.isFloatcart(r.y) ? ' <span class="badge fc">floatcart</span>' : '') + '</span>'
-              : '<span class="res">running…</span>');
+              : '<span class="res">running…</span>') + '<a class="open" href="' + esc(finderLink()) + '">Open in finder &rarr;</a>';
   }
 
   var last = 0;

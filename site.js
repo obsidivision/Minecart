@@ -34,7 +34,24 @@ var FC = (function () {
   window.addEventListener('storage', function (e) {
     if (e.key === KEY && (e.newValue === 'light' || e.newValue === 'dark')) { root.setAttribute('data-theme', e.newValue); sync(); }
   });
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', sync); else sync();
+  // on a phone the page links fold into a menu button next to the theme button
+  function menu() {
+    var nav = document.querySelector('.topbar nav'), theme = document.getElementById('theme');
+    if (!nav || !theme || document.querySelector('.nav-btn')) return;
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.className = 'btn ghost sm nav-btn'; btn.textContent = 'Menu';
+    btn.setAttribute('aria-expanded', 'false'); btn.setAttribute('aria-controls', nav.id || (nav.id = 'pages'));
+    theme.parentNode.insertBefore(btn, theme);
+    btn.addEventListener('click', function () {
+      var open = nav.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+    });
+    document.addEventListener('click', function (e) {
+      if (nav.classList.contains('open') && !nav.contains(e.target) && e.target !== btn) { nav.classList.remove('open'); btn.setAttribute('aria-expanded', 'false'); }
+    });
+  }
+  function ready() { sync(); menu(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ready); else ready();
 
   return {
     isDark: isDark,

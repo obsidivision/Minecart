@@ -6,18 +6,18 @@
 <title>Minecart alignment finder · Minecraft Java 26.2</title>
 <meta name="description" content="Find a minecart track that stops the cart where you want. Floatcarts included.">
 <meta name="color-scheme" content="light dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Crect%20width%3D%2224%22%20height%3D%2224%22%20rx%3D%225%22%20fill%3D%22%230e0f12%22/%3E%3Cpath%20d%3D%22M4.5%207h15l-1.8%207H6.3z%22%20fill%3D%22none%22%20stroke%3D%22%23fff%22%20stroke-width%3D%221.8%22%20stroke-linejoin%3D%22round%22/%3E%3Ccircle%20cx%3D%229%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3Ccircle%20cx%3D%2215%22%20cy%3D%2217.2%22%20r%3D%221.5%22%20fill%3D%22%23fff%22/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns=%22http://www.w3.org/2000/svg%22%20viewBox=%220%200%2016%2016%22%20shape-rendering=%22crispEdges%22%3E%3Crect%20width=%2216%22%20height=%2216%22%20fill=%22%231d1c19%22/%3E%3Cpath%20d=%22M1%203h14v2h-1v4h-1v1H3V9H2V5H1z%22%20fill=%22%23e9e7df%22/%3E%3Cpath%20d=%22M3%2010h3v3H3zM10%2010h3v3h-3z%22%20fill=%22%23d44a33%22/%3E%3C/svg%3E">
 <script>try{var t=localStorage.getItem('floatcart-rules-theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <link rel="stylesheet" href="site.css">
 </head>
 <!--
   Minecart alignment finder. Plain JavaScript, no framework or libraries, and nothing is
-  fetched from the network: the page needs site.css, site.js, scene3d.js and
-  floatcart-finder.js beside it. Aims for the parked cart's y, or its x / z after the parking
+  fetched from the network: the page needs site.css, site.js, scene3d.js, engine.js,
+  litematic.js, tester.js, viewer3d.js and finder.js beside it. Aims for the parked cart's y, or its x / z after the parking
   rail is broken (the cart then falls straight down, see dropY), at one value or a range.
 
-  For whoever maintains it: floatcart-finder.js is the source, edited directly; there is no
-  build step. Its physics engine (makeEngine) began as a port of the now retired Python
+  For whoever maintains it: the scripts are the source, edited directly; there is no build
+  step. The physics engine (makeEngine, engine.js) began as a port of the now retired Python
   simulator, checked against it to the last digit (7,980 full runs, every search outcome at
   depths 3 to 5, and the full searches that found the 13 floatcart makers). The search runs in
   Web Workers made from makeEngine's own source.
@@ -25,7 +25,7 @@
 <body>
 <div class="topbar">
   <div class="wrap bar">
-    <a class="wordmark" href="index.html"><svg viewBox="0 0 24 18" aria-hidden="true" focusable="false"><path d="M2.5 3.5h19l-2.2 8.5H4.7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="8" cy="15.2" r="1.9" fill="currentColor"/><circle cx="16" cy="15.2" r="1.9" fill="currentColor"/></svg><span>floatcart</span></a>
+    <a class="wordmark" href="index.html"><svg viewBox="0 0 16 12" shape-rendering="crispEdges" aria-hidden="true" focusable="false"><path d="M1 1h14v2h-1v4h-1v1H3V7H2V3H1z" fill="currentColor"/><path d="M4 3h8v1H4z" fill="currentColor" opacity=".35"/><path d="M3 8h3v3H3zM10 8h3v3h-3z" fill="#c23f29"/></svg><span>floatcart</span></a>
     <nav aria-label="Pages"><a href="floatcart-3d.html">Challenge</a><a href="floatcart-makers-3d.html">Makers</a><a href="floatcart-finder.html" aria-current="page">Finder</a><a href="floatcart-simulator-rules.html">Rules</a></nav>
     <button type="button" class="btn ghost icon theme-btn" id="theme" aria-pressed="false" aria-label="Switch to dark mode"><svg class="i-moon" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><path d="M15.5 12.6A6.5 6.5 0 0 1 7.4 4.5a6.5 6.5 0 1 0 8.1 8.1z" fill="currentColor"/></svg><svg class="i-sun" viewBox="0 0 20 20" aria-hidden="true" focusable="false"><circle cx="10" cy="10" r="3.4" fill="currentColor"/><path d="M10 1.8v2.2M10 16v2.2M1.8 10H4M16 10h2.2M4.2 4.2l1.6 1.6M14.2 14.2l1.6 1.6M4.2 15.8l1.6-1.6M14.2 5.8l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
   </div>
@@ -172,7 +172,13 @@
       </div>
 
       <section class="results" id="results" hidden aria-labelledby="h-res">
-        <div class="res-head"><h2 id="h-res">Closest tracks</h2></div>
+        <div class="res-head"><h2 id="h-res">Closest tracks</h2>
+          <div class="res-tools" id="resTools" hidden>
+            <label class="visually-hidden" for="resFilter">Which starts to show</label>
+            <select id="resFilter"><option value="all">All starts</option><option value="hand">Placed by hand</option><option value="fly">Launched</option><option value="loader">Loading run</option></select>
+            <label class="chk"><input type="checkbox" id="resGroup"> One row per layout</label>
+          </div>
+        </div>
         <p id="summary" aria-live="polite"></p>
         <div id="prog" hidden>
           <div class="progress" id="barBox" role="progressbar" aria-label="Search progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="bar"></i></div>
@@ -191,7 +197,7 @@
           <div><dt>Accuracy</dt><dd>Matches FarCoolHat's stored cart and was confirmed in game on 13 tracks.</dd></div>
           <div><dt>x and z</dt><dd>Break the parking rail and the cart drops straight down.</dd></div>
           <div><dt>Stoppers</dt><dd>Stop the cart against a block or bud instead of placing it. Each one gives a different start.</dd></div>
-          <div><dt>Launcher</dt><dd>FarCoolHat's stopper: nothing to break. Not tested in game yet.</dd></div>
+          <div><dt>Launcher</dt><dd>FarCoolHat's stopper: nothing to break. Works in game.</dd></div>
           <div><dt>Boats</dt><dd>The cart picks the boat up on the way. It moves differently with one inside.</dd></div>
           <div><dt>Position</dt><dd>Moving the track changes the last few digits.</dd></div>
           <div><dt>Keep it clear</dt><dd>The cart grabs mobs and boats it passes.</dd></div>
@@ -201,13 +207,23 @@
   </div>
 </div>
 <footer class="site-foot">
-  <div class="wrap">
-    <p><strong>07km</strong> &mdash; solution, search, schematics. Claude for visualization.</p>
-    <p>Build: &ldquo;vertical floatcart challenge&rdquo; by FarCoolHat. Java Edition 26.2, classic minecart engine. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</p>
+  <div class="wrap foot">
+    <dl class="colophon">
+      <dt>Created by</dt><dd>07km <span>solution, search, schematics</span></dd>
+      <dt>Powered by</dt><dd>Java Projectile Tech</dd>
+      <dt>Funded by</dt><dd>Cosmos</dd>
+      <dt>Build</dt><dd>FarCoolHat <span>vertical floatcart challenge</span></dd>
+      <dt>Visuals</dt><dd>Claude</dd>
+    </dl>
+    <p class="legal">Java Edition 26.2, classic minecart engine. Not an official Minecraft product; not approved by or associated with Mojang or Microsoft.</p>
   </div>
 </footer>
 <script src="site.js"></script>
 <script src="scene3d.js"></script>
-<script src="floatcart-finder.js"></script>
+<script src="engine.js"></script>
+<script src="litematic.js"></script>
+<script src="tester.js"></script>
+<script src="viewer3d.js"></script>
+<script src="finder.js"></script>
 </body>
 </html>
