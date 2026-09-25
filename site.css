@@ -784,14 +784,3 @@ footer.site-foot { border-top: 2px solid var(--fg); padding: 28px 0 44px; }
 .meter.hit .meter-mk { animation: hit .6s ease; transform-origin: bottom; }
 .meter.hit .meter-win { animation: glow .9s ease; }
 @media (prefers-reduced-motion: reduce) { #rows.arrive > tr.r, #rows.arrive .badge.fc, .meter.hit .meter-mk, .meter.hit .meter-win { animation: none; } }
-
-/* the Textures button and its panel (site.js) */
-.tex-wrap { position: relative; margin-left: auto; }
-.tex-wrap + .theme-btn, .tex-wrap ~ .theme-btn { margin-left: 4px; }
-.tex-btn.on { color: var(--fg); box-shadow: inset 0 -2px 0 var(--brand); }
-.tex-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(320px, calc(100vw - 32px)); padding: 14px 16px; display: grid; gap: 8px;
-  background: var(--card); border: 1px solid var(--line-2); border-radius: 3px; box-shadow: 0 10px 28px -12px rgba(0, 0, 0, .4); font-size: 13.5px; color: var(--fg-2); }
-.tex-panel b { color: var(--fg); }
-.tex-panel label.btn { cursor: pointer; justify-self: start; }
-.tex-panel .tex-status { font-size: 12.5px; color: var(--fg-3); }
-@media (max-width: 640px) { .tex-wrap { margin-left: auto; } .tex-wrap ~ .nav-btn { margin-left: 4px; } }

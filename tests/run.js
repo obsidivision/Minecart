@@ -22,7 +22,7 @@ if (process.argv.includes('--browser')) {
     const base = 'http://127.0.0.1:' + server.address().port + '/';
     // the browser tests run as their own processes, so the server has to answer while they run
     const { spawn } = require('child_process');
-    const files = ['finder-starts', 'finder-links', 'viewers', 'home', 'textures'].map(n => path.join(__dirname, 'browser', n + '.js'));
+    const files = ['finder-starts', 'finder-links', 'viewers', 'home'].map(n => path.join(__dirname, 'browser', n + '.js'));
     (function next(i) {
       if (i >= files.length) { server.close(); finish(); return; }
       console.log('\n== ' + path.relative(ROOT, files[i]));
